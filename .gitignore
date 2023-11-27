@@ -1,0 +1,8 @@
+__pycache__/
+py-DDGR1.1/src/data/datasets
+py-DDGR1.1/src/results/
+py-DDGR1.1/src/notebook/
+
+*.pth.tar
+# *.pt
+*.jpg
