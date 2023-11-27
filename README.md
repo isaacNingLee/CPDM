@@ -1,19 +1,12 @@
-# DDGR
-Code for ICML2023 paper, **DDGR: Continual Learning with Deep Diffusion-based Generative Replay**.
 # Prerequisites
-Our experiments are conducted on a Ubuntu 64-Bit Linux workstation, having NVIDIA GeForce RTX 3090 GPUs with 24GB graphics memory. Conducting our experiments requires the following steps.
 ```
-conda create --name <ENV-NAME> python=3.7
-source activate <ENV-NAME>
-#Install cuda.
-conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
-conda install mpi4py==3.1.4
-conda install pillow
-conda install opencv-python
-pip install blobfile
-pip install -r requirement.txt
+conda create -n cpdm python=3.10.12 -y
+conda activate cpdm
+conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia -y
+pip install pandas matplotlib seaborn tqdm opencv-python wandb blobfile accelerate diffusers["torch"] transformers timm
+conda install -c conda-forge mpi4py mpich -y
+accelerate config default --mixed_precision fp16
 ```
-
 # Datasets
 
 **<font size=5>CIFAR100</font>**
@@ -48,13 +41,14 @@ python generate_imagenet_class.py
 The dataset will be downloaded automatically. You can also download "core50_imgs.npz", "labels.pkl","LUP.pkl" and "paths.pkl" manually into "/src/data/datasets/core/core50CIREP".
 # Usage Example 
 ```
-python run_cifar100.py
+cd CPDM/py-CPDM1.1
+bash script/alexnet/cifar100_t10.sh
 ```
 # Code Overview
 The file structure of directory is as follows:
 ```
 .
-├── py-DDGR1.0                            # The main code directory
+├── py-CPDM1.0                            # The main code directory
 │   ├── src                
 │   │  ├── data                           # The directory contains the dataset.
 │   │  ├── framework                      # The directory contains the framework of continual learning.
