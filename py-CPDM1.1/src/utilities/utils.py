@@ -143,10 +143,10 @@ def get_exp_name(args, method):
                 "df={}".format(args.decaying_factor),
                 "e={}".format(args.num_epochs),
                 "bs={}".format(args.batch_size)]
-    if args.method_name in ["DDGR", "CIDM", "IDGR"]:
+    if args.method_name in ["DDGR", "CPDM"]:
         exp_name.append("diffusion_steps={}".format(args.diffusion_steps))
         exp_name.append("num_samples={}".format(args.num_samples))
-        if args.method_name in ["CIDM", "IDGR", "GradCam"]:
+        if args.method_name in ["CPDM"]:
             if args.ddpm:
                 exp_name.append("ddpm={}".format(args.num_inference_timesteps))
             else:

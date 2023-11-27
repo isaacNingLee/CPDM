@@ -59,7 +59,7 @@ def test_model(method, model, dataset_path, target_task_head_idx, target_head=No
 
     if class_incremental:
         if args.class_incremental_repetition:
-            if args.method_name in ['DDGR', 'CIDM', 'IDGR', 'GradCam']:
+            if args.method_name in ['DDGR', 'CPDM']:
                 class_correct = {dset_classes[i]: 0. for i in range(len(dset_classes))}
                 class_total = {dset_classes[i]: 0. for i in range(len(dset_classes))}
                 this_task_class_to_idx = {dset_classes[i]: i for i in range(len(dset_classes))}
@@ -67,7 +67,7 @@ def test_model(method, model, dataset_path, target_task_head_idx, target_head=No
                 class_correct = {dset_classes[i]:0. for i in  range(len(dset_classes))}
                 class_total = {dset_classes[i]:0. for i in  range(len(dset_classes))}
         else:
-            if args.method_name in ['DDGR', 'CIDM', 'IDGR', 'GradCam']:
+            if args.method_name in ['DDGR', 'CPDM']:
                 class_correct = {dset_classes[i]: 0. for i in range(len(dset_classes))}
                 class_total = {dset_classes[i]: 0. for i in range(len(dset_classes))}
                 this_task_class_to_idx = {dset_classes[i]: i for i in range(len(dset_classes))}
@@ -91,7 +91,7 @@ def test_model(method, model, dataset_path, target_task_head_idx, target_head=No
         labels = labels.cuda(non_blocking=True)
         labels = labels.squeeze()
 
-        if class_incremental and (args.method_name in ['DDGR', 'CIDM', 'IDGR', 'GradCam']):
+        if class_incremental and (args.method_name in ['DDGR', 'CPDM']):
             outputs = method.get_output(images, holder)
 
             _, target_head_pred = torch.max(outputs.data, 1)
