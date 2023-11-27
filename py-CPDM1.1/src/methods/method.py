@@ -16,7 +16,6 @@ from src.data.imgfolder import ConcatDatasetDynamicLabels
 import src.framework.inference as test_network
 
 import src.methods.DDGR.main_DDGR as trainDDGR
-import src.methods.CIDM.main_CIDM as trainCIDM
 import src.methods.CPDM.main_CPDM as trainCPDM
 import src.methods.Finetune.main_SGD as trainFT
 
