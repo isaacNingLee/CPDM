@@ -16,9 +16,6 @@ def train_model(args, model, criterion, optimizer, lr, dsets, batch_size, dset_s
                 task_counter,exp_dir='./',
                 resume='', saving_freq=5,device=None,combine_label_list=None,gen_dset=None, 
                 test_ds_path=[]):
-    # dset_loaders = {x: torch.utils.data.DataLoader(dsets[x], batch_size=batch_size, num_workers=4,
-    #                                                 shuffle=True, pin_memory=True, persistent_workers=True)
-    #                     for x in ['train', 'val', 'test']}
     dset_loaders = {x: torch.utils.data.DataLoader(dsets[x], batch_size=batch_size, num_workers=4,
                                                     shuffle=True, pin_memory=True, persistent_workers=True)
                         for x in ['train', 'val']}
@@ -57,19 +54,12 @@ def train_model(args, model, criterion, optimizer, lr, dsets, batch_size, dset_s
 
     print(str(start_epoch))
     print("lr is", lr)
-    # if 'imagenet1000' in args.ds_name:
-    #     scheduler = torch.optim.lr_scheduler.StepLR(
-    #         optimizer=optimizer,
-    #         step_size=7,
-    #         gamma=0.1,
-    #     )
 
     for epoch in range(start_epoch, num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
         print('task_counter: '+str(task_counter))
 
-        # for phase in ['train', 'val', 'test']:
         for phase in ['train', 'val']:
 
             if phase == 'train':
@@ -158,8 +148,6 @@ def train_model(args, model, criterion, optimizer, lr, dsets, batch_size, dset_s
                     val_beat_counts = 0
                 else:
                     val_beat_counts += 1
-        # if 'imagenet1000' in args.ds_name:
-        #     scheduler.step()
         if epoch % saving_freq == 0:
 
             epoch_file_name = exp_dir + '/' + 'epoch' + '.pth.tar'

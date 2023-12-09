@@ -1,3 +1,6 @@
+# CPDM
+Implementation for <b>Class-Prototype Conditional Diffusion Model for Continual Learning with Generative Replay</b>
+
 # Prerequisites
 ```
 conda create -n cpdm python=3.10.12 -y
@@ -18,7 +21,7 @@ Automatic download.
 You should download the ImageNet manually and process the images into "src/data/datasets/ImageNet/imagenet-1000/".
 The directory is:
 ```
-├── py-DDGR1.0                               # The main code directory
+├── py-CPDM1.0                               # The main code directory
 │   ├── src                
 │   │  ├── data 
 │   │  │  ├── datasets
@@ -52,7 +55,7 @@ The file structure of directory is as follows:
 │   ├── src                
 │   │  ├── data                           # The directory contains the dataset.
 │   │  ├── framework                      # The directory contains the framework of continual learning.
-│   │  ├── methods                        # The directory contains the codes of DDGR.
+│   │  ├── methods                        # The directory contains the codes of CPDM.
 │   │  ├── models                         # The directory contains the defined models.
 │   │  ├── results                        # The directory contains the results.
 │   │  ├── utilities                      # The directory contains some defined functions.
