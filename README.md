@@ -1,8 +1,9 @@
 # CPDM
-Implementation for <b>Class-Prototype Conditional Diffusion Model for Continual Learning with Generative Replay</b>
+Implementation for <b>[Class-Prototype Conditional Diffusion Model for Continual Learning with Generative Replay](https://arxiv.org/abs/2312.06710)</b>
 
 ## Overview
 ![CPDM overview](./CPDM_overall.png)
+In scenario of <b>Continual Class Incremental Learning (with Repetition) with Generative Replay</b>, our method <b>CPDM</b> uses Diffusion Models and Class Prototypes to generate old task samples. Prototypes learned for each class are effective tools to improve image quality.
 
 ## Prerequisites
 ```
@@ -13,8 +14,8 @@ pip install pandas matplotlib seaborn tqdm opencv-python wandb blobfile accelera
 conda install -c conda-forge mpi4py mpich -y
 accelerate config default --mixed_precision fp16
 ```
-## Datasets
 
+## Datasets
 **<font size=3>CIFAR100</font>**
 ```
 Automatic download.
