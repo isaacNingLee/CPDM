@@ -1,7 +1,10 @@
 # CPDM
 Implementation for <b>Class-Prototype Conditional Diffusion Model for Continual Learning with Generative Replay</b>
 
-# Prerequisites
+## Overview
+![CPDM overview](./CPDM_overall.png)
+
+## Prerequisites
 ```
 conda create -n cpdm python=3.10.12 -y
 conda activate cpdm
@@ -10,13 +13,13 @@ pip install pandas matplotlib seaborn tqdm opencv-python wandb blobfile accelera
 conda install -c conda-forge mpi4py mpich -y
 accelerate config default --mixed_precision fp16
 ```
-# Datasets
+## Datasets
 
-**<font size=5>CIFAR100</font>**
+**<font size=3>CIFAR100</font>**
 ```
 Automatic download.
 ```
-**<font size=5>ImageNet</font>**
+**<font size=3>ImageNet</font>**
 
 You should download the ImageNet manually and process the images into "src/data/datasets/ImageNet/imagenet-1000/".
 The directory is:
@@ -39,15 +42,17 @@ Then run generate_imagenet.py and generate_imagenet_class.py in order.
 python generate_imagenet.py
 python generate_imagenet_class.py
 ```
-**<font size=5>CORe50</font>**
+**<font size=3>CORe50</font>**
 
 The dataset will be downloaded automatically. You can also download "core50_imgs.npz", "labels.pkl","LUP.pkl" and "paths.pkl" manually into "/src/data/datasets/core/core50CIREP".
-# Usage Example 
+
+## Usage Example 
 ```
 cd CPDM/py-CPDM1.1
 bash script/alexnet/cifar100_t10.sh
 ```
-# Code Overview
+
+## Code Overview
 The file structure of directory is as follows:
 ```
 .
