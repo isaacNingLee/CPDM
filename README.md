@@ -3,7 +3,7 @@ Implementation for <b>[Class-Prototype Conditional Diffusion Model for Continual
 
 ## Overview
 ![CPDM overview](./CPDM_overall.png)
-In scenario of <b>Continual Class Incremental Learning (with Repetition) with Generative Replay</b>, our method <b>CPDM</b> uses Diffusion Models and Class Prototypes to generate old task samples. Prototypes learned for each class are effective tools to improve image quality.
+In scenario of <b>Continual Class Incremental Learning with Generative Replay</b>, our method <b>CPDM</b> uses Diffusion Models and Class Prototypes to generate old task samples. Prototypes learned for each class are effective tools to improve image quality.
 
 ## Prerequisites
 ```
@@ -79,7 +79,7 @@ CPDM is licensed under the MIT License.
 ```
 MIT License
 
-Copyright (c) 2023 Alexander Tong
+Copyright (c) 2023 Khanh Doan
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
