@@ -3,7 +3,7 @@ Implementation for <b>[Class-Prototype Conditional Diffusion Model for Continual
 
 ## Overview
 ![CPDM overview](./CPDM_overall.png)
-In scenario of <b>Continual Class Incremental Learning (with Repetition) with Generative Replay</b>, our method <b>CPDM</b> uses Diffusion Models and Class Prototypes to generate old task samples. Prototypes learned for each class are effective tools to improve image quality.
+In scenario of <b>Continual Class Incremental Learning with Generative Replay</b>, our method <b>CPDM</b> uses Diffusion Models and Class Prototypes to generate old task samples. Prototypes learned for each class are effective tools to improve image quality.
 
 ## Prerequisites
 ```
@@ -79,7 +79,7 @@ CPDM is licensed under the MIT License.
 ```
 MIT License
 
-Copyright (c) 2023 Alexander Tong
+Copyright (c) 2023 Khanh Doan
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -98,4 +98,18 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## Thanks
+A large portion of this codebase is built upon [DDGR](https://github.com/xiaocangshengGR/DDGR) and [diffusers](https://github.com/huggingface/diffusers).
+
+## Citation
+If you find this code useful for your research, please cite our paper
+```
+@article{doan2023class,
+  title={Class-Prototype Conditional Diffusion Model for Continual Learning with Generative Replay},
+  author={Doan, Khanh and Tran, Quyen and Nguyen, Tuan and Phung, Dinh and Le, Trung},
+  journal={arXiv preprint arXiv:2312.06710},
+  year={2023}
+}
 ```
