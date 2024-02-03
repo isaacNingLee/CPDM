@@ -24,6 +24,7 @@ import src.framework.new_eval as test
 
 from src.score.fid import get_statistics
 from src.score.both import get_inception_and_fid_score
+from src.score.cmmd import compute_cmmd
 
 TRAINING_DONE_TOKEN = 'DIFFUSION.TRAINING.DONE'
 
@@ -238,6 +239,7 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
         print(f"Statistics Task {task_counter}\n")
         try:
             is_score, fid_score = get_inception_and_fid_score(images, labels,  fid_cache, num_images=None, splits=10, batch_size=50) # 6, 31
+            cmmd = compute_cmmd(dataset_path, samples_path, batch_size=50, max_count=-1)
         except ValueError:
             print(f'Error in computing IS and FID for task {task_counter}')
         print()

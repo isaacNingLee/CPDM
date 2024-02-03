@@ -104,6 +104,9 @@ parser.add_argument('--ema_rate', type=float, default=0.9999)
 
 parser.add_argument('--toy', default=False, action='store_true')
 
+parser.add_argument('--canny_edge', default=False, action='store_true')
+parser.add_argument('--contrastive_loss', default=False, action='store_true')
+
 def create_argparser_dict():
     defaults = dict(
         class_cond=True,

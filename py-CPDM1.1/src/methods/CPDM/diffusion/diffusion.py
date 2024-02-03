@@ -253,6 +253,10 @@ class Diffusion():
         if (self.labels_metric is not None) and (self.task_counter > 0):
             self.nearest = self.labels_metric[(len(self.all_labels) - len(self.curtask_labels)):len(self.all_labels), :(len(self.all_labels) - len(self.curtask_labels))].argmin(dim=1)
             self.nearest = self.nearest.to(self.accelerator.device)
+
+            self.furthest = self.labels_metric[(len(self.all_labels) - len(self.curtask_labels)):len(self.all_labels), :(len(self.all_labels) - len(self.curtask_labels))].argmax(dim=1)
+            self.furthest = self.furthest.to(self.accelerator.device)
+
         if self.discriminator is not None:
             self.discriminator, self.discriminator_optimizer = self.accelerator.prepare(self.discriminator, self.discriminator_optimizer)
         if self.discriminator_lr_scheduler is not None:
@@ -458,17 +462,32 @@ class Diffusion():
                         c_timesteps = timesteps[labels >= min(self.curtask_labels)]
                         nearest_labels = self.nearest[c_labels - min(self.curtask_labels)]
                         c_noise_pred = self.model(
-                            c_model_input, c_timesteps, self.labels_embedding[c_labels], return_dict=False
-                        )[0]
+                                c_model_input, c_timesteps, self.labels_embedding[c_labels], return_dict=False
+                            )[0]
                         nearest_noise_pred = self.model(
-                            c_model_input, c_timesteps, self.labels_embedding[nearest_labels], return_dict=False
-                        )[0].detach().clone()
-                        mse_loss_rc = torch.mean(
-                            F.mse_loss(c_noise_pred, nearest_noise_pred, reduction='none').mean(dim=tuple(range(1, len(model_input.shape)))) \
-                            * c_timesteps.type(torch.float32)
-                        )
-                        loss += self.args.tau * mse_loss_rc
-                        losses['mse_loss_rc'] = mse_loss_rc
+                                c_model_input, c_timesteps, self.labels_embedding[nearest_labels], return_dict=False
+                            )[0].detach().clone()
+                        if self.args.contrastive_loss:
+                            furthest_labels = self.furthest[c_labels - min(self.curtask_labels)]
+                            furthest_noise_pred = self.model(
+                                c_model_input, c_timesteps, self.labels_embedding[furthest_labels], return_dict=False
+                            )[0].detach().clone()
+                            cosine_triple_loss = torch.mean(
+                                F.triplet_margin_with_distance_loss(noise_pred, furthest_noise_pred, distance_function = nn.CosineSimilarity() ,reduction='none').mean(dim=tuple(range(1, len(model_input.shape)))) \
+                                * timesteps[:noise.shape[0]].type(torch.float32)
+                            )
+
+                            loss+= self.args.tau * cosine_triple_loss
+                            losses['cosine_triple_loss'] = cosine_triple_loss
+
+                        
+                        else:
+                            mse_loss_rc = torch.mean(
+                                F.mse_loss(c_noise_pred, nearest_noise_pred, reduction='none').mean(dim=tuple(range(1, len(model_input.shape)))) \
+                                * c_timesteps.type(torch.float32)
+                            )
+                            loss += self.args.tau * mse_loss_rc
+                            losses['mse_loss_rc'] = mse_loss_rc
                     
                     if self.args.ce_enhanced_weight > 0.0 or (self.args.ce_uncertainty_weight > 0.0 and self.task_counter > 0) or self.discriminator is not None:
                         previous_noisy_images = self.train_scheduler.my_step(noise_pred, timesteps, noisy_images).prev_sample

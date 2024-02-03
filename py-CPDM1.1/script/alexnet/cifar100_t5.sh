@@ -40,3 +40,4 @@ python run_CPDM.py \
     --nearest_label cosine \
     --tau 1e-4 \
     --CI_order_rndseed 12551 \
+    --contrastive_loss \

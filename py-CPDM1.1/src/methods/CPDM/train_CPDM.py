@@ -237,6 +237,9 @@ def do_find_most_confidence(args, model, train_dset, batch_size, use_cuda, combi
                 value = prob[label].item()
                 if value > best[_label.item()]:
                     best[_label.item()] = value
+                    ##
+                    # TODO implement canny edge detection
+                    ##
                     result[_label.item()] = F.interpolate(input.cpu().unsqueeze(dim=0), size=args.image_size)[0]
     return result
 
