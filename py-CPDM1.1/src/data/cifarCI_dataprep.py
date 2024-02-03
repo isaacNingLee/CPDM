@@ -11,6 +11,7 @@ from copy import deepcopy
 import os
 from PIL import Image
 from torchvision import transforms
+from src.score.fid import get_statistics
 
 import src.utilities.utils as utils
 from src.data.imgfolder import random_split, ImageFolderTrainVal
@@ -188,6 +189,8 @@ def create_train_test_val_imagefolders(task,cifa100_datagen,
                                                         transform=normalize, classes=test_dataset.classes,
                                                         class_to_idx=test_dataset.class_to_idx,
                                                         imgs=test_pl)
+    
+
 
     return dsets,train_count+val_count
 
@@ -244,6 +247,9 @@ def create_train_val_test_imagefolder_dict(dataset_root, task_count, outfile,cif
     cifa100_datagen = SplitCIFAR100(cifar100CI_train, cifar100CI_test,task_count,class_order_list)
 
     num_img = 0
+    dset_list = []
+    images = []
+    labels = []
     for task in range(1, task_count + 2):
         print("\nTASK ", task)
         utils.create_dir(os.path.join(out_dir, str(task)))
@@ -251,12 +257,52 @@ def create_train_val_test_imagefolder_dict(dataset_root, task_count, outfile,cif
                                          transforms.Normalize((0.5071, 0.4866, 0.4409), (0.2009, 0.1984, 0.2023)),
                                          transforms.Resize(64),])
         dsets,count_img = create_train_test_val_imagefolders(task,cifa100_datagen, out_dir, normalize, num_img)
+        dset_list.append(dsets)
         num_img+=count_img
         torch.save(dsets, os.path.join(out_dir, str(task), outfile))
         print("SIZES: train={}, val={}, test={}, num_img={}".format(len(dsets['train']), len(dsets['val']),
                                                         len(dsets['test']),num_img))
+        
+        dset_loaders_temp = {x: torch.utils.data.DataLoader(dsets[x], batch_size=256, num_workers=4,
+                                        shuffle=True, pin_memory=True, persistent_workers=True)
+            for x in ['train', 'val']}
+
+        ziploaders_temp =  enumerate(dset_loaders_temp['train'])
+        for _, (inputs, labels_temp) in ziploaders_temp:
+            for (img, label) in zip(inputs, labels_temp):
+                images.append(img)
+                labels.append(label)
+
+        mu, sigma = get_statistics(
+            images=images, num_images=None, batch_size=50,
+            use_torch=False, verbose=False, parallel=False)
+        if not os.path.exists(out_dir+'/stats'):
+            os.makedirs(out_dir+'/stats')
+
+
+        np.savez(os.path.join(out_dir+'/stats', 'task_{}_stats.npz'.format(task)), mu=mu, sigma=sigma)
 
     print("Saved dictionary format of train/val/test dataset Imagefolders.")
+
+    #     # create a empty list of size 100
+    # class_imgs = [None] * 100
+
+    # for (img, label) in zip(images, labels):
+    #     if class_imgs[label] is None:
+    #         class_imgs[label] = []
+    #     class_imgs[label].append(img)
+
+    # # check if path exists, if not create it
+    # if not os.path.exists(os.path.join(out_dir, 'stats')):
+    #     os.makedirs(os.path.join(out_dir, 'stats'))
+
+    # for class_id in range(100):
+    #     if class_imgs[class_id] is not None:
+    #          mu, sigma = get_statistics(
+    #             images=class_imgs[class_id], num_images=None, batch_size=50,
+    #             use_torch=False, verbose=False, parallel=False)
+            
+    #     np.savez(os.path.join(out_dir+'/stats', f'class_{class_id}_stats'), mu=mu, sigma=sigma)
 
 
 def prepare_dataset(dset,cifar100CI_train,cifar100CI_test,

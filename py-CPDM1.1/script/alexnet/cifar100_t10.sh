@@ -39,3 +39,5 @@ python run_CPDM.py \
     --max_grad_norm \
     --nearest_label cosine \
     --tau 1e-4 \
+    --CI_order_rndseed 20 \
+    --ddpm \

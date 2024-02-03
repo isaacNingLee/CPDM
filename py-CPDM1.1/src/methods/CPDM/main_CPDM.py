@@ -22,6 +22,9 @@ from src.methods.CPDM.diffusion.diffusion import Diffusion
 
 import src.framework.new_eval as test
 
+from src.score.fid import get_statistics
+from src.score.both import get_inception_and_fid_score
+
 TRAINING_DONE_TOKEN = 'DIFFUSION.TRAINING.DONE'
 
 def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, task_counter, labels_embedding, labels_metric, batch_size=200,
@@ -40,6 +43,14 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
     since = time.time()
     use_cuda = torch.cuda.is_available()
     dsets = torch.load(dataset_path)
+
+    ## TODO compute ground truth metrics
+    # m1, s1 = get_statistics(
+    #     images=dsets['train'].samples[0], num_images=None, batch_size=50,
+    #     use_torch=False, verbose=False, parallel=False)
+
+
+    
     print(dataset_path)
 
     dset_sizes = {x: len(dsets[x]) for x in ['train', 'val']}
@@ -207,6 +218,49 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                         generator_classes,
                                         generator_class_to_idx,
                                         dsets)
+
+        # TODO compute new metrics
+        gen_dset_loaders_temp = {x: torch.utils.data.DataLoader(gen_dset[x], batch_size=batch_size, num_workers=4,
+                                            shuffle=True, pin_memory=True, persistent_workers=True)
+                for x in ['train', 'val']}
+        gen_ziploaders_temp =  enumerate(gen_dset_loaders_temp['train'])
+        images = []
+        labels = []
+        for _, (inputs, labels_temp) in gen_ziploaders_temp:
+            for (img, label) in zip(inputs, labels_temp):
+                images.append(img)
+                labels.append(label)
+
+        print(f'number of replay images: {len(images)}')
+        parts = dataset_path.split('/')
+        extracted_path = '/'.join(parts[:-2]) if len(parts) > 2 else dataset_path
+        fid_cache = os.path.join(extracted_path, 'stats', 'task_{}_stats.npz'.format(task_counter))
+        print(f"Statistics Task {task_counter}\n")
+        try:
+            is_score, fid_score = get_inception_and_fid_score(images, labels,  fid_cache, num_images=None, splits=10, batch_size=50) # 6, 31
+        except ValueError:
+            print(f'Error in computing IS and FID for task {task_counter}')
+        print()
+
+        # parts = dataset_path.split('/')
+        # extracted_path = '/'.join(parts[:-2]) if len(parts) > 2 else dataset_path
+        
+        # is_list = []
+        # fid_list = []
+
+        # print("Statistics\n")
+        # for class_id in range(100):
+
+        #     fid_cache = os.path.join(extracted_path, 'stats', f'class_{class_id}_stats.npz')
+        #     is_score, fid_score = get_inception_and_fid_score(images[class_id], labels[class_id],  fid_cache, num_images=None, splits=10, batch_size=50)
+
+        #     is_list.append(is_score)
+        #     fid_list.append(fid_score)
+
+        #     print(f'Class {class_id}: IS: {is_score}, FID: {fid_score}')
+        
+        # print(f'Average IS: {np.mean(is_list)}, Average FID: {np.mean(fid_list)}')
+
         _labels_list = deepcopy(labels_list)
         if not args.diffusion_without_replay:
             gen_pl_list = gen_dset['train'].get_allfigs_filepath()
@@ -216,6 +270,11 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
             labels_list.extend(gen_labels_list)
         resume = os.path.join(exp_dir, 'epoch.pth.tar')
         test_ds_path.append(dataset_path)
+
+
+
+
+        
         model_ft, best_acc = CPDM_train.train_model(args=args,model=model_ft, criterion=criterion,
                                                     optimizer=optimizer_ft,lr = lr,
                                                     dsets = dsets, batch_size = batch_size, dset_sizes = dset_sizes,

@@ -19,7 +19,7 @@ python run_CPDM.py \
     --CI_task_count 5 \
     --label_hid_dim 768 \
     --image_size 64 \
-    --num_samples 20 \
+    --num_samples 100 \
     --CPDM_generator_factor 0.25 \
     --use_fp16 True \
     --diffusion_steps 1000 \
@@ -39,3 +39,4 @@ python run_CPDM.py \
     --max_grad_norm \
     --nearest_label cosine \
     --tau 1e-4 \
+    --CI_order_rndseed 12551 \
