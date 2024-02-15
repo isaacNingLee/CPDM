@@ -13,7 +13,7 @@ class CLIPPytorch:
         """
         Preprocess images using the CLIP specific transforms.
         """
-        return [self.preprocess(Image.fromarray((img * 255).to(torch.uint8).numpy())).unsqueeze(0) for img in images]
+        return [self.preprocess(Image.fromarray((img * 255).astype('uint8'))).unsqueeze(0) for img in images]
 
     def embed(self, images):
         """

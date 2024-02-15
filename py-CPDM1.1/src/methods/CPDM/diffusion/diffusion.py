@@ -128,6 +128,14 @@ def save_to_JPEG(num_samples,all_images,all_labels,all_class_name,output_path):
     print("sampling complete")
     return img_path_label_list, classes, class_to_idx
 
+def get_in_channels(image_condition):
+    if image_condition == 'none':
+        return 3
+    elif image_condition == 'canny':
+        return 4
+    else:
+        return 6
+
 
 class Diffusion():
     def __init__(
@@ -169,7 +177,7 @@ class Diffusion():
 
         self.model = get_unet_condition_model(
             sample_size=self.args.image_size,
-            in_channels=3 if self.args.image_condition == 'none' else 6,
+            in_channels=get_in_channels(self.args.image_condition),
             encoder_hid_proj_as_identity=(self.args.embed_condition == 'identity'),
             encoder_hid_proj_no_bias=(self.args.embed_condition == 'no_bias')
         )
@@ -455,33 +463,53 @@ class Diffusion():
                     noise_pred = self.model(model_input, timesteps, encoder_hidden_states, return_dict=False)[0]
                     mse_loss += F.mse_loss(noise_pred, noise)
                     loss += mse_loss
-
                     if (self.labels_metric is not None) and (self.task_counter > 0):
-                        c_labels = labels[labels >= min(self.curtask_labels)]
-                        c_model_input = model_input[labels >= min(self.curtask_labels)]
-                        c_timesteps = timesteps[labels >= min(self.curtask_labels)]
-                        nearest_labels = self.nearest[c_labels - min(self.curtask_labels)]
-                        c_noise_pred = self.model(
-                                c_model_input, c_timesteps, self.labels_embedding[c_labels], return_dict=False
-                            )[0]
-                        nearest_noise_pred = self.model(
-                                c_model_input, c_timesteps, self.labels_embedding[nearest_labels], return_dict=False
-                            )[0].detach().clone()
+                        
                         if self.args.contrastive_loss:
-                            furthest_labels = self.furthest[c_labels - min(self.curtask_labels)]
-                            furthest_noise_pred = self.model(
-                                c_model_input, c_timesteps, self.labels_embedding[furthest_labels], return_dict=False
-                            )[0].detach().clone()
-                            cosine_triple_loss = torch.mean(
-                                F.triplet_margin_with_distance_loss(noise_pred, furthest_noise_pred, distance_function = nn.CosineSimilarity() ,reduction='none').mean(dim=tuple(range(1, len(model_input.shape)))) \
-                                * timesteps[:noise.shape[0]].type(torch.float32)
-                            )
+                            c_labels = labels[labels >= min(self.curtask_labels)]
+                            c_model_input = model_input[labels >= min(self.curtask_labels)]
+                            c_timesteps = timesteps[labels >= min(self.curtask_labels)]
+                            nearest_labels = self.nearest[c_labels - min(self.curtask_labels)]
+                            c_noise_pred = self.model(
+                                    c_model_input, c_timesteps, self.labels_embedding[c_labels], return_dict=False
+                                )[0]
 
-                            loss+= self.args.tau * cosine_triple_loss
-                            losses['cosine_triple_loss'] = cosine_triple_loss
+                            furthest_labels = self.furthest[c_labels - min(self.curtask_labels)]
+
+                            c_model_input = torch.cat((c_model_input, c_model_input), dim=0)
+                            c_timesteps = torch.cat((c_timesteps, c_timesteps), dim=0)
+                            label_emb = torch.cat((self.labels_embedding[nearest_labels], self.labels_embedding[furthest_labels]), dim=0)
+
+
+                            pred = self.model(
+                                c_model_input, c_timesteps, label_emb, return_dict=False
+                            )[0].detach().clone()
+                            nearest_noise_pred = pred[:len(c_noise_pred)]
+                            furthest_noise_pred = pred[len(c_noise_pred):]
+                            # TODO normalize them !!!!
+                            
+                            cosine_triplet_loss = torch.mean(
+                                F.triplet_margin_with_distance_loss(c_noise_pred.reshape(len(c_noise_pred), -1), nearest_noise_pred.reshape(len(c_noise_pred), -1), furthest_noise_pred.reshape(len(c_noise_pred), -1), distance_function = nn.CosineSimilarity() ,reduction='none') \
+                                * c_timesteps[:len(c_noise_pred)].type(torch.float32)
+
+                            )
+                            # TODO try cosine embedding loss as well
+
+                            loss+= self.args.rho * cosine_triplet_loss
+                            losses['cosine_triplet_loss'] = cosine_triplet_loss
 
                         
-                        else:
+                        elif self.args.diversity_loss:
+                            c_labels = labels[labels >= min(self.curtask_labels)]
+                            c_model_input = model_input[labels >= min(self.curtask_labels)]
+                            c_timesteps = timesteps[labels >= min(self.curtask_labels)]
+                            nearest_labels = self.nearest[c_labels - min(self.curtask_labels)]
+                            c_noise_pred = self.model(
+                                    c_model_input, c_timesteps, self.labels_embedding[c_labels], return_dict=False
+                                )[0]
+                            nearest_noise_pred = self.model(
+                                    c_model_input, c_timesteps, self.labels_embedding[nearest_labels], return_dict=False
+                                )[0].detach().clone()
                             mse_loss_rc = torch.mean(
                                 F.mse_loss(c_noise_pred, nearest_noise_pred, reduction='none').mean(dim=tuple(range(1, len(model_input.shape)))) \
                                 * c_timesteps.type(torch.float32)

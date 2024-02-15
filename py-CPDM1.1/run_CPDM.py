@@ -93,7 +93,7 @@ parser.add_argument('--wgan_set_weight', default=False, action='store_true')
 parser.add_argument('--nearest_label', type=str, choices=['cosine', 'euclid'], default=None)
 parser.add_argument('--tau', type=float, default=0.0)
 
-parser.add_argument('--image_condition', type=str, choices=['none', 'buffer', 'learn', 'learn_from_noise'], default='none')
+parser.add_argument('--image_condition', type=str, choices=['none', 'buffer', 'learn', 'learn_from_noise', 'canny'], default='none')
 parser.add_argument('--learning_start', type=str, choices=['most', 'less', 'avg'], default='most')
 parser.add_argument('--image_condition_learn_lr', type=float, default=1e-4)
 parser.add_argument('--image_condition_learn_L2', type=float, default=0.0)
@@ -106,6 +106,8 @@ parser.add_argument('--toy', default=False, action='store_true')
 
 parser.add_argument('--canny_edge', default=False, action='store_true')
 parser.add_argument('--contrastive_loss', default=False, action='store_true')
+parser.add_argument('--diversity_loss', default=False, action='store_true')
+parser.add_argument('--rho', type=float, default=1e-8)
 
 def create_argparser_dict():
     defaults = dict(

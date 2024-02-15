@@ -6,3 +6,5 @@ py-CPDM1.1/src/notebook/
 *.pth.tar
 # *.pt
 *.jpg
+CL_Diffusion/
+logs/

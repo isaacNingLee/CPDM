@@ -44,13 +44,6 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
     since = time.time()
     use_cuda = torch.cuda.is_available()
     dsets = torch.load(dataset_path)
-
-    ## TODO compute ground truth metrics
-    # m1, s1 = get_statistics(
-    #     images=dsets['train'].samples[0], num_images=None, batch_size=50,
-    #     use_torch=False, verbose=False, parallel=False)
-
-
     
     print(dataset_path)
 
@@ -135,6 +128,8 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                         most_confidence = CPDM_train.do_find_less_confidence(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     elif args.learning_start == 'avg':
                         most_confidence = CPDM_train.do_find_avg(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+                    elif args.image_condition == 'canny':
+                        most_confidence = CPDM_train.do_find_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     else:
                         most_confidence = CPDM_train.do_find_most_confidence(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     os.makedirs(os.path.join(exp_dir, 'image-condition', 'start', 'tensors'), exist_ok=True)
@@ -237,11 +232,20 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
         extracted_path = '/'.join(parts[:-2]) if len(parts) > 2 else dataset_path
         fid_cache = os.path.join(extracted_path, 'stats', 'task_{}_stats.npz'.format(task_counter))
         print(f"Statistics Task {task_counter}\n")
+
         try:
             is_score, fid_score = get_inception_and_fid_score(images, labels,  fid_cache, num_images=None, splits=10, batch_size=50) # 6, 31
-            cmmd = compute_cmmd(dataset_path, samples_path, batch_size=50, max_count=-1)
         except ValueError:
-            print(f'Error in computing IS and FID for task {task_counter}')
+            print("ValueError: FID score is not computed")
+
+        parts = dataset_path.split('/')
+        extracted_path = '/'.join(parts[:-1]) if len(parts) > 1 else dataset_path
+        extracted_path += '/train'
+            
+        cmmd = compute_cmmd(extracted_path, samples_path, batch_size=50, max_count=-1)
+
+        print(f'CMMD: {cmmd}')
+
         print()
 
         # parts = dataset_path.split('/')
@@ -326,6 +330,8 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                     or (len(os.listdir(os.path.join(exp_dir, 'image-condition', 'start', 'tensors'))) < len(combine_label_list)):
                     if args.image_condition == 'learn_from_noise':
                         most_confidence = CPDM_train.do_random(args, list(sorted(set(labels_list))))
+                    elif args.image_condition == 'canny':
+                        most_confidence = CPDM_train.do_find_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, list(sorted(set(labels_list))))
                     else:
                         most_confidence = CPDM_train.do_find_most_confidence(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, list(sorted(set(labels_list))))
                     os.makedirs(os.path.join(exp_dir, 'image-condition', 'start', 'tensors'), exist_ok=True)

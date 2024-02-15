@@ -24,8 +24,8 @@ def mmd(x, y):
     Returns:
       The MMD distance between x and y embedding sets.
     """
-    x = torch.as_tensor(x).cuda()
-    y = torch.as_tensor(y).cuda()
+    x = torch.as_tensor(x)
+    y = torch.as_tensor(y)
 
     # Calculate the squared norms of each row in x and y
     x_sqnorms = torch.sum(x**2, dim=1)
@@ -57,7 +57,6 @@ def compute_cmmd(
         The CMMD value between the image sets.
     """
     embedding_model = CLIPPytorch()
-
     ref_embs = io_util.compute_embeddings_for_dir(
         ref_dir, embedding_model, batch_size, max_count
     )
@@ -65,4 +64,4 @@ def compute_cmmd(
         eval_dir, embedding_model, batch_size, max_count
     )
     val = mmd(ref_embs, eval_embs)
-    return np.asarray(val.cpu())
+    return np.asarray(val)

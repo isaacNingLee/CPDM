@@ -272,6 +272,12 @@ def get_train_results_path(tr_results_root_path, dataset_obj, method_name=None, 
         create_dir(path)
     if filename is not None:
         path = os.path.join(path, filename)
+    if args.contrastive_loss:#####
+        path = os.path.join(path, 'contrastive_loss')
+    elif args.diversity_loss:#########
+        path = os.path.join(path, 'diversity_loss')
+    else:
+        path = os.path.join(path, 'no_add_loss')
     return path
 
 

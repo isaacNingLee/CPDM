@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 import src.utilities.utils as utils
+import kornia as ki
 
 
 TRAINING_DONE_TOKEN = 'CLASSIFIER.TRAINING.DONE'
@@ -237,9 +238,6 @@ def do_find_most_confidence(args, model, train_dset, batch_size, use_cuda, combi
                 value = prob[label].item()
                 if value > best[_label.item()]:
                     best[_label.item()] = value
-                    ##
-                    # TODO implement canny edge detection
-                    ##
                     result[_label.item()] = F.interpolate(input.cpu().unsqueeze(dim=0), size=args.image_size)[0]
     return result
 
@@ -309,6 +307,48 @@ def do_find_avg(args, model, train_dset, batch_size, use_cuda, combine_label_lis
                 count[label.item()] += 1
     for label in current_label_list:
         result[label] = result[label] / count[label]
+    return result
+
+def do_find_canny(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
+    train_loader = torch.utils.data.DataLoader(train_dset, batch_size=batch_size, num_workers=16,
+                                                    shuffle=True, pin_memory=True, persistent_workers=True)
+    this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
+    result = dict()
+    best = dict()
+    for label in current_label_list:
+        best[label] = 0.0
+    model.train(False)
+    with torch.no_grad():
+        for data in tqdm(train_loader, desc='find most confidence'):
+            inputs, _labels = data
+            if 'mnist' in args.ds_name:
+                inputs = inputs.squeeze()
+            if args.class_incremental or args.class_incremental_repetition:
+                l = [this_task_class_to_idx[_labels[i].item()] for i in range(len(_labels))]
+                ll = torch.tensor(l).reshape(_labels.shape)
+                labels = ll
+
+            if use_cuda:
+                inputs, labels = Variable(inputs.cuda(non_blocking=True)), \
+                                    Variable(labels.cuda(non_blocking=True))
+            else:
+                inputs, labels = Variable(inputs), Variable(labels)
+
+            if args.class_incremental or args.class_incremental_repetition:
+                logits = model(inputs,combine_label_list)
+            else:
+                logits = model(inputs)
+            probs = torch.softmax(logits, dim=1)
+            for input, label, _label, prob in zip(inputs, labels, _labels, probs):
+                value = prob[label].item()
+                if value > best[_label.item()]:
+                    best[_label.item()] = value
+                    ##
+                    # TODO implement canny edge detection
+                    ##
+                    # convert input to PIL image
+                    _, canny = ki.filters.canny(input.unsqueeze(0))
+                    result[_label.item()] = F.interpolate(canny.cpu(), size=args.image_size)[0]
     return result
 
 

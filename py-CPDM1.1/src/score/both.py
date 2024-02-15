@@ -107,6 +107,8 @@ def get_inception_and_fid_score(images, labels, fid_cache, num_images=None,
     else:
         is_score = (np.mean(scores), np.std(scores))
 
+    print('is', is_score)
+
     # FID Score
     print('calculate fid')
     f = np.load(fid_cache)
@@ -123,7 +125,7 @@ def get_inception_and_fid_score(images, labels, fid_cache, num_images=None,
     fid_score = calculate_frechet_distance(m1, s1, m2, s2, use_torch=use_torch)
 
     print('fid', fid_score)
-    print('is', is_score)
+    
 
 
     return is_score, fid_score

@@ -7,6 +7,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 def _get_image_list(path):
+
   ext_list = ['png', 'jpg', 'jpeg']
   image_list = []
   for ext in ext_list:
@@ -47,20 +48,20 @@ class ImageDataset(Dataset):
         image = _read_image(img_path, self.reshape_to)
         if image.ndim == 2:
             image = np.tile(image[..., np.newaxis], (1, 1, 3))
-        return transforms.ToTensor()(image)
+        return image
 
 def compute_embeddings_for_dir(img_dir, embedding_model, batch_size, max_count=-1):
     img_path_list = _get_image_list(img_dir)
     if max_count > 0:
         img_path_list = img_path_list[:max_count]
 
-    dataset = ImageDataset(img_path_list, embedding_model.input_image_size)
+    dataset = ImageDataset(img_path_list, 64)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     all_embs = []
     for batch in tqdm(dataloader, total=len(dataloader)):
         with torch.no_grad():
-            embs = embedding_model(batch).cpu().numpy()
+            embs = embedding_model.embed(batch).cpu().numpy()
         all_embs.append(embs)
 
     all_embs = np.concatenate(all_embs, axis=0)
