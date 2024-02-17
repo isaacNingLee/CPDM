@@ -194,11 +194,17 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                 curtask_path=exp_dir
             )
             sample_start_time = time.time()
-            generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample(
-                samples_path=samples_path,
-                label_order_list=label_order_list,
-                dataset_path=dataset_path
-            )
+            # generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample(
+            #     samples_path=samples_path,
+            #     label_order_list=label_order_list,
+            #     dataset_path=dataset_path
+            # )
+
+            generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample_correct(args, model_ft, samples_path, 
+                                                                                                                label_order_list, dataset_path, combine_label_list, 
+                                                                                                                use_cuda = use_cuda)
+
+
             utils.savepickle(data=generator_img_path_label_list,file_path=os.path.join(exp_dir,"generator_img_path_label_list_stage.pkl"))
             utils.savepickle(data=generator_classes,file_path=os.path.join(exp_dir, "generator_classes_stage.pkl"))
             utils.savepickle(data=generator_class_to_idx, file_path=os.path.join(exp_dir, "generator_class_to_idx_stage.pkl"))
@@ -214,7 +220,9 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                         generator_classes,
                                         generator_class_to_idx,
                                         dsets)
+        ## compute gen dsets acc
 
+        CPDM_train.eval_model(args, model_ft,batch_size, use_cuda, task_counter, exp_dir, combine_label_list=combine_label_list, gen_dset=gen_dset)
         # TODO compute new metrics
         gen_dset_loaders_temp = {x: torch.utils.data.DataLoader(gen_dset[x], batch_size=batch_size, num_workers=4,
                                             shuffle=True, pin_memory=True, persistent_workers=True)

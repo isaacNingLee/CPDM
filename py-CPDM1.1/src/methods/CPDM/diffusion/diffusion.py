@@ -27,6 +27,8 @@ from .my_diffusers.schedulers.scheduling_ddpm import MyDDPMScheduler
 from .discriminator import Discriminator
 from .unet_discriminator import get_encoder_unet_condition_model
 
+from torch.autograd import Variable
+
 
 def get_mean(dataset):
     if dataset == 'cifar100CI':
@@ -347,6 +349,109 @@ class Diffusion():
                 self.accelerator.unwrap_model(self.discriminator).save_pretrained(os.path.join(self.curtask_model_path, 'discriminator'))
             else:
                 torch.save(self.discriminator.state_dict(), os.path.join(self.curtask_model_path, 'discriminator.pt'))
+
+    def sample_correct(self, args, model_ft, samples_path, label_order_list, dataset_path, combine_label_list, use_cuda = False):
+        print('Sample imgs ...')
+        all_class_name = os.path.join(os.path.dirname(os.path.dirname(dataset_path)),"order_seed={}.pkl".format(self.args.CI_order_rndseed))
+        all_class_name_list = utils.unpickle(all_class_name)
+        print("sampling...")
+        all_images = []
+        all_labels = []
+        num_samples = self.args.num_samples * len(label_order_list)
+        label_counter = 0
+        generated = [0] * 100
+        print(f"created 0 / {num_samples} samples", end="\r")
+        while len(all_images) < num_samples:
+            
+            done = False
+
+            while not done:
+                rnd_label = []
+
+                while (len(rnd_label) < 100) and (label_counter < len(label_order_list)):
+                    rnd_label.extend([label_order_list[label_counter] for _ in range(2 * self.args.num_samples)])
+                    label_counter += 1
+                    
+                rnd_label = np.array(rnd_label)
+                rnd_label = torch.from_numpy(rnd_label).to(dist_util.dev())
+                encoder_hidden_states = self.labels_embedding[rnd_label]
+                zeros = torch.zeros_like(encoder_hidden_states)
+                noise = torch.randn((rnd_label.shape[0], 3, self.args.image_size, self.args.image_size)).to(dist_util.dev())
+                if self.most_confidence is not None:
+                    image_conditions = torch.stack(
+                        [self.most_confidence[label.item()] for label in rnd_label],
+                        dim=0
+                    ).to(dist_util.dev())
+                sample = noise
+                for t in tqdm(
+                    self.inference_scheduler.timesteps,
+                    desc=f"created {len(all_images)} / {num_samples} samples",
+                    leave=False
+                ):
+                    if self.most_confidence is not None:
+                        model_input = torch.cat((image_conditions, sample), dim=1)
+                    else:
+                        model_input = sample
+                    with torch.no_grad():
+                        if self.args.w > 0.0:
+                            noisy_residual = (self.args.w + 1) * self.model(model_input, t, encoder_hidden_states).sample \
+                                            - self.args.w * self.model(model_input, t, zeros).sample
+                        else:
+                            noisy_residual = self.model(model_input, t, encoder_hidden_states).sample
+                    previous_noisy_sample = self.inference_scheduler.step(noisy_residual, t, sample).prev_sample
+                    sample = previous_noisy_sample
+
+                # TODO: ensure all samples created can be correctly classified
+                inputs = sample
+                labels = rnd_label
+
+                if use_cuda:
+                    inputs, labels = Variable(inputs.cuda(non_blocking=False)), \
+                                        Variable(labels.cuda(non_blocking=False))
+                else:
+                    inputs, labels = Variable(inputs), Variable(labels)
+
+
+                if args.class_incremental or args.class_incremental_repetition:
+                    logits = model_ft(inputs,combine_label_list)
+                else:
+                    logits = model_ft(inputs)
+                _, preds = torch.max(logits.data, 1)
+
+                # check if correctly classified
+                # if not, discard and resample
+                count = 0
+                for count in range(len(labels)):
+                    if preds[count] == labels[count]:
+                        if generated[labels[count]] < args.num_samples:
+                            img = (inputs[count] / 2 + 0.5).clamp(0, 1)
+                            img = (img.permute(1,2,0) * 255).round().to(torch.uint8)
+                            img = img.contiguous()
+
+                            all_images.append(img.cpu().numpy())
+                            all_labels.append(labels[count].cpu().numpy())
+                            generated[labels[count]] += 1
+                #get unique labels in labels
+                unique_labels = list(set(labels.cpu().numpy()))
+                for idx in unique_labels:
+                    if generated[idx] < args.num_samples:
+                        done = False
+                        break
+                    else:
+                        done = True
+                if not done:
+                    label_counter -= len(unique_labels)
+                            
+
+        print(f"created {num_samples} / {num_samples} samples")
+        utils.create_dir(samples_path)
+        generator_img_path_label_list, generator_classes, generator_class_to_idx = save_to_JPEG(num_samples,
+                                                                                            all_images,
+                                                                                            all_labels,
+                                                                                            all_class_name_list,
+                                                                                            samples_path)
+        # exit(0)
+        return generator_img_path_label_list, generator_classes, generator_class_to_idx
 
     def sample(self, samples_path, label_order_list, dataset_path):
         print('Sample imgs ...')

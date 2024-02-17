@@ -242,7 +242,7 @@ def create_train_val_test_imagefolder_dict(dataset_root, task_count, outfile,cif
         utils.savepickle(order, order_name)
     class_order_list = list(order)
 
-    np.random.seed(7)
+    np.random.seed(7)# what????????????????
 
     cifa100_datagen = SplitCIFAR100(cifar100CI_train, cifar100CI_test,task_count,class_order_list)
 
