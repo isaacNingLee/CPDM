@@ -28,107 +28,98 @@ def eval_model(args, model, batch_size,  use_cuda,
     
     
     this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
-    if os.path.isfile(resume):
-        print("=> loading checkpoint '{}'".format(resume))
-        checkpoint = torch.load(resume)
-        model.load_state_dict(checkpoint['state_dict'])
-        print("=> loaded checkpoint '{}' (epoch {})"
-              .format(resume, checkpoint['epoch']))
-
-    else:
-        print("=> no checkpoint found at '{}'".format(resume))
 
     print('task_counter: '+str(task_counter))
         
     model.train(False)
+    with torch.no_grad():
+        running_corrects = 0
+        running_counter = 0
 
-    running_corrects = 0
-    running_counter = 0
+        if gen_dset_loaders is not None:
+            ziploaders = enumerate(zip(gen_dset_loaders['train']))
 
-    if gen_dset_loaders is not None:
-        ziploaders = enumerate(zip(gen_dset_loaders['train']))
+        class_correct = list(0. for i in range(100))
+        class_total = list(0. for i in range(100))
+        class_acc = list(0. for i in range(100))
 
-    class_correct = list(0. for i in range(100))
-    class_total = list(0. for i in range(100))
-    class_acc = list(0. for i in range(100))
+        for _,data in tqdm(ziploaders):
 
-    for _,data in tqdm(ziploaders):
+            if (gen_dset_loaders is not None):
+                inputs, labels = data[0]
+            if 'mnist' in args.ds_name:
+                inputs = inputs.squeeze()
+            if args.class_incremental or args.class_incremental_repetition:
+                l = [this_task_class_to_idx[labels[i].item()] for i in range(len(labels))]
+                ll = torch.tensor(l).reshape(labels.shape)
+                labels = ll
 
-        if (gen_dset_loaders is not None):
-            inputs, labels = data[0]
-        if 'mnist' in args.ds_name:
-            inputs = inputs.squeeze()
-        if args.class_incremental or args.class_incremental_repetition:
-            l = [this_task_class_to_idx[labels[i].item()] for i in range(len(labels))]
-            ll = torch.tensor(l).reshape(labels.shape)
-            labels = ll
-
-        if use_cuda:
-            inputs, labels = Variable(inputs.cuda(non_blocking=False)), \
-                                Variable(labels.cuda(non_blocking=False))
-        else:
-            inputs, labels = Variable(inputs), Variable(labels)
-        running_counter+=inputs.shape[0]
-
-
-        if args.class_incremental or args.class_incremental_repetition:
-            logits = model(inputs,combine_label_list)
-        else:
-            logits = model(inputs)
-        _, preds = torch.max(logits.data, 1)
-
-        running_corrects += torch.sum(preds == labels.data).item()
+            if use_cuda:
+                inputs, labels = Variable(inputs.cuda(non_blocking=False)), \
+                                    Variable(labels.cuda(non_blocking=False))
+            else:
+                inputs, labels = Variable(inputs), Variable(labels)
+            running_counter+=inputs.shape[0]
 
 
-        ## class-wise accuracy 
-        for i in range(len(labels)):
-            label = labels[i]
-            class_correct[label] += (preds[i] == label).item()
-            class_total[label] += 1
+            if args.class_incremental or args.class_incremental_repetition:
+                logits = model(inputs,combine_label_list)
+            else:
+                logits = model(inputs)
+            _, preds = torch.max(logits.data, 1)
+
+            running_corrects += torch.sum(preds == labels.data).item()
+
+
+            ## class-wise accuracy 
+            for i in range(len(labels)):
+                label = labels[i]
+                class_correct[label] += (preds[i] == label).item()
+                class_total[label] += 1
+            
+        for i in range(len(class_total)):
+            if class_total[i] == 0:
+                class_total[i] = 1
+            class_acc[i] = class_correct[i]/class_total[i]
+
+        #put class acc and class total in pd frame 
+        class_acc_df = pd.DataFrame({'class': range(100), 'class_acc': class_acc, 'class_total': class_total}) 
         
-    for i in range(len(class_total)):
-        if class_total[i] == 0:
-            class_total[i] = 1
-        class_acc[i] = class_correct[i]/class_total[i]
+        class_acc_df.to_csv(f'{exp_dir}/class_acc_task_{task_counter}.csv', index=False)
 
-    #put class acc and class total in pd frame 
-    class_acc_df = pd.DataFrame({'class': range(100), 'class_acc': class_acc, 'class_total': class_total}) 
-    
-    class_acc_df.to_csv(f'{exp_dir}\canny_class_acc_task_{task_counter}.csv', index=False)
+        # Create a color list based on class ranges
+        colors = []
+        for i in range(len(class_acc)):
+            if i < 50:
+                colors.append('blue')
+            elif i < 60:
+                colors.append('green')
+            elif i < 70:
+                colors.append('yellow')
+            elif i < 80:
+                colors.append('orange')
+            elif i < 90:
+                colors.append('red')
+            else:
+                colors.append('purple')
 
-    # Create a color list based on class ranges
-    colors = []
-    for i in range(len(class_acc)):
-        if i < 50:
-            colors.append('blue')
-        elif i < 60:
-            colors.append('green')
-        elif i < 70:
-            colors.append('yellow')
-        elif i < 80:
-            colors.append('orange')
-        elif i < 90:
-            colors.append('red')
-        else:
-            colors.append('purple')
-
-    # plot acc histogram for each class
-    fig, ax = plt.subplots()
-    ax.bar(range(len(class_correct)), [acc for acc in class_acc], color=colors)
-    ax.set_xlabel('Class')
-    ax.set_ylabel('Accuracy')
-    #add legend
-    ax.legend(['Task 1', 'Task 2', 'Task 3', 'Task 4', 'Task 5', 'Task 6'])
+        # plot acc histogram for each class
+        fig, ax = plt.subplots()
+        ax.bar(range(len(class_correct)), [acc for acc in class_acc], color=colors)
+        ax.set_xlabel('Class')
+        ax.set_ylabel('Accuracy')
+        #add legend
+        ax.legend(['Task 1', 'Task 2', 'Task 3', 'Task 4', 'Task 5', 'Task 6'])
 
 
 
 
-    plt.show()
-    plt.savefig(f'{exp_dir}\canny_acc_histogram_task_{task_counter}.png')
+        plt.show()
+        plt.savefig(f'{exp_dir}/acc_histogram_task_{task_counter}.png')
 
-    epoch_acc = running_corrects / running_counter
+        epoch_acc = running_corrects / running_counter
 
-    print(f'Generated samples accuracy: {epoch_acc}')
+        print(f'Generated samples accuracy: {epoch_acc}')
 
 
 

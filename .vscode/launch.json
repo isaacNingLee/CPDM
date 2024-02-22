@@ -91,7 +91,7 @@
                 "--w",
                 "3.0",
                 "--image_condition",
-                "canny",
+                "learn",
                 "--image_condition_learn_lr",
                 "1e-2",
                 "--image_condition_learn_L2",
@@ -102,10 +102,11 @@
                 "--tau",
                 "1e-4",
                 "--CI_order_rndseed",
-                "112731",
-                "--diversity_loss",
+                "19662371",
+                "--contrastive_loss",
                 "--rho",
-                "1e-8"
+                "1e-8",
+                "--sample_correct"
             ]
             // "args": [
             //     "--class_incremental",

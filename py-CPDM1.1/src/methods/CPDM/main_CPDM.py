@@ -199,10 +199,15 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
             #     label_order_list=label_order_list,
             #     dataset_path=dataset_path
             # )
-
-            generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample_correct(args, model_ft, samples_path, 
+            if args.sample_correct:
+                generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample_correct(args, model_ft, samples_path, 
                                                                                                                 label_order_list, dataset_path, combine_label_list, 
                                                                                                                 use_cuda = use_cuda)
+            else:
+                generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample(samples_path=samples_path,
+                                                                                                            label_order_list=label_order_list,
+                                                                                                            dataset_path=dataset_path
+                                                                                                            )
 
 
             utils.savepickle(data=generator_img_path_label_list,file_path=os.path.join(exp_dir,"generator_img_path_label_list_stage.pkl"))

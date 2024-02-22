@@ -278,6 +278,12 @@ def get_train_results_path(tr_results_root_path, dataset_obj, method_name=None, 
         path = os.path.join(path, 'diversity_loss')
     else:
         path = os.path.join(path, 'no_add_loss')
+
+    if args.sample_correct:
+        path = os.path.join(path, 'sample_correct')
+    else:
+        path = os.path.join(path, 'no_sample_correct')
+        
     return path
 
 

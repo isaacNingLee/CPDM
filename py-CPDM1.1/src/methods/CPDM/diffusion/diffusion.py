@@ -107,7 +107,10 @@ def output_img(filepath,img):
 def save_to_JPEG(num_samples,all_images,all_labels,all_class_name,output_path):
     arr = np.concatenate(all_images, axis=0)
     arr = arr[: num_samples]
-    label_arr = np.concatenate(all_labels, axis=0)
+    try:
+        label_arr = np.concatenate(all_labels, axis=0)
+    except:
+        label_arr = np.array(all_labels)
     label_arr = label_arr[: num_samples]
     class_to_idx = set()
     classes = set()
@@ -361,87 +364,124 @@ class Diffusion():
         label_counter = 0
         generated = [0] * 100
         print(f"created 0 / {num_samples} samples", end="\r")
-        while len(all_images) < num_samples:
-            
-            done = False
+        model_ft.train(False)
+        with torch.no_grad():
+            while len(all_images) < num_samples:
+                
+                done = False
+                resample_counter = 0
+                missing_idx = []
+                current_idx = []
+                force_sample = False
 
-            while not done:
-                rnd_label = []
-
-                while (len(rnd_label) < 100) and (label_counter < len(label_order_list)):
-                    rnd_label.extend([label_order_list[label_counter] for _ in range(2 * self.args.num_samples)])
-                    label_counter += 1
+                while not done:
                     
-                rnd_label = np.array(rnd_label)
-                rnd_label = torch.from_numpy(rnd_label).to(dist_util.dev())
-                encoder_hidden_states = self.labels_embedding[rnd_label]
-                zeros = torch.zeros_like(encoder_hidden_states)
-                noise = torch.randn((rnd_label.shape[0], 3, self.args.image_size, self.args.image_size)).to(dist_util.dev())
-                if self.most_confidence is not None:
-                    image_conditions = torch.stack(
-                        [self.most_confidence[label.item()] for label in rnd_label],
-                        dim=0
-                    ).to(dist_util.dev())
-                sample = noise
-                for t in tqdm(
-                    self.inference_scheduler.timesteps,
-                    desc=f"created {len(all_images)} / {num_samples} samples",
-                    leave=False
-                ):
+                    if resample_counter > 10:
+                        print("Resample counter exceeded 10")
+                        force_sample = True
+                    
+                    rnd_label = []
+
+                    if len(missing_idx) == 0:
+                        while (len(rnd_label) < 100) and (label_counter < len(label_order_list)):
+                            rnd_label.extend([label_order_list[label_counter] for _ in range(self.args.num_samples)])
+                            current_idx.append(label_order_list[label_counter])
+                            label_counter += 1
+                    else:
+                        for idx in missing_idx:
+                            rnd_label.extend([idx for _ in range((1 + resample_counter) * self.args.num_samples)])
+                        missing_idx = []
+
+                        
+                    rnd_label = np.array(rnd_label)
+                    rnd_label = torch.from_numpy(rnd_label).to(dist_util.dev())
+                    encoder_hidden_states = self.labels_embedding[rnd_label]
+                    zeros = torch.zeros_like(encoder_hidden_states)
+                    noise = torch.randn((rnd_label.shape[0], 3, self.args.image_size, self.args.image_size)).to(dist_util.dev())
                     if self.most_confidence is not None:
-                        model_input = torch.cat((image_conditions, sample), dim=1)
-                    else:
-                        model_input = sample
-                    with torch.no_grad():
-                        if self.args.w > 0.0:
-                            noisy_residual = (self.args.w + 1) * self.model(model_input, t, encoder_hidden_states).sample \
-                                            - self.args.w * self.model(model_input, t, zeros).sample
+                        image_conditions = torch.stack(
+                            [self.most_confidence[label.item()] for label in rnd_label],
+                            dim=0
+                        ).to(dist_util.dev())
+                    sample = noise
+                    for t in tqdm(
+                        self.inference_scheduler.timesteps,
+                        desc=f"created {len(all_images)} / {num_samples} samples",
+                        leave=False
+                    ):
+                        if self.most_confidence is not None:
+                            model_input = torch.cat((image_conditions, sample), dim=1)
                         else:
-                            noisy_residual = self.model(model_input, t, encoder_hidden_states).sample
-                    previous_noisy_sample = self.inference_scheduler.step(noisy_residual, t, sample).prev_sample
-                    sample = previous_noisy_sample
+                            model_input = sample
+                        with torch.no_grad():
+                            if self.args.w > 0.0:
+                                noisy_residual = (self.args.w + 1) * self.model(model_input, t, encoder_hidden_states).sample \
+                                                - self.args.w * self.model(model_input, t, zeros).sample
+                            else:
+                                noisy_residual = self.model(model_input, t, encoder_hidden_states).sample
+                        previous_noisy_sample = self.inference_scheduler.step(noisy_residual, t, sample).prev_sample
+                        sample = previous_noisy_sample
 
-                # TODO: ensure all samples created can be correctly classified
-                inputs = sample
-                labels = rnd_label
+                    # TODO: ensure all samples created can be correctly classified
+                    inputs = sample
+                    labels = rnd_label
 
-                if use_cuda:
-                    inputs, labels = Variable(inputs.cuda(non_blocking=False)), \
-                                        Variable(labels.cuda(non_blocking=False))
-                else:
-                    inputs, labels = Variable(inputs), Variable(labels)
-
-
-                if args.class_incremental or args.class_incremental_repetition:
-                    logits = model_ft(inputs,combine_label_list)
-                else:
-                    logits = model_ft(inputs)
-                _, preds = torch.max(logits.data, 1)
-
-                # check if correctly classified
-                # if not, discard and resample
-                count = 0
-                for count in range(len(labels)):
-                    if preds[count] == labels[count]:
-                        if generated[labels[count]] < args.num_samples:
-                            img = (inputs[count] / 2 + 0.5).clamp(0, 1)
-                            img = (img.permute(1,2,0) * 255).round().to(torch.uint8)
-                            img = img.contiguous()
-
-                            all_images.append(img.cpu().numpy())
-                            all_labels.append(labels[count].cpu().numpy())
-                            generated[labels[count]] += 1
-                #get unique labels in labels
-                unique_labels = list(set(labels.cpu().numpy()))
-                for idx in unique_labels:
-                    if generated[idx] < args.num_samples:
-                        done = False
-                        break
+                    if use_cuda:
+                        inputs, labels = Variable(inputs.cuda(non_blocking=False)), \
+                                            Variable(labels.cuda(non_blocking=False))
                     else:
+                        inputs, labels = Variable(inputs), Variable(labels)
+
+
+                    if args.class_incremental or args.class_incremental_repetition:
+                        logits = model_ft(inputs,combine_label_list)
+                    else:
+                        logits = model_ft(inputs)
+                    _, preds = torch.max(logits.data, 1)
+
+                    # check if correctly classified
+                    # if not, discard and resample
+                    
+                    for count in range(len(labels)):
+                        if generated[labels[count]] < args.num_samples:
+                            if not force_sample:
+                                if preds[count] == labels[count]:
+                                    
+                                        img = inputs[count].unsqueeze(0)
+                                        img = (img / 2 + 0.5).clamp(0, 1)
+                                        img = (img.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
+                                        img = img.contiguous()
+
+                                        all_images.append(img.cpu().numpy())
+                                        all_labels.append(labels[count].cpu().numpy())
+                                        generated[labels[count]] += 1
+                            else:
+                                    img = inputs[count].unsqueeze(0)
+                                    img = (img / 2 + 0.5).clamp(0, 1)
+                                    img = (img.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
+                                    img = img.contiguous()
+
+                                    all_images.append(img.cpu().numpy())
+                                    all_labels.append(labels[count].cpu().numpy())
+                                    generated[labels[count]] += 1
+                                
+                    #get unique labels in labels
+
+                    for idx in current_idx:
+                        if generated[idx] < args.num_samples:
+                            missing_idx.append(idx)
+
+                    if len(missing_idx) == 0:
                         done = True
-                if not done:
-                    label_counter -= len(unique_labels)
-                            
+
+                    if done or force_sample:
+                        
+                        resample_counter = 0
+                    else:
+                        resample_counter += 1
+
+                    
+                                
 
         print(f"created {num_samples} / {num_samples} samples")
         utils.create_dir(samples_path)

@@ -108,6 +108,7 @@ parser.add_argument('--canny_edge', default=False, action='store_true')
 parser.add_argument('--contrastive_loss', default=False, action='store_true')
 parser.add_argument('--diversity_loss', default=False, action='store_true')
 parser.add_argument('--rho', type=float, default=1e-8)
+parser.add_argument('--sample_correct', default=False, action='store_true')
 
 def create_argparser_dict():
     defaults = dict(
