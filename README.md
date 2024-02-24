@@ -10,7 +10,7 @@ In scenario of <b>Continual Class Incremental Learning with Generative Replay</b
 conda create -n cpdm python=3.10.12 -y
 conda activate cpdm
 conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia -y
-pip install pandas matplotlib seaborn tqdm opencv-python wandb blobfile accelerate diffusers["torch"] transformers timm
+pip install pandas matplotlib seaborn tqdm opencv-python wandb blobfile accelerate diffusers["torch"] transformers timm scipy scikit-learn ftfy regex tqdm git+https://github.com/openai/CLIP.git kornia
 conda install -c conda-forge mpi4py mpich -y
 accelerate config default --mixed_precision fp16
 ```

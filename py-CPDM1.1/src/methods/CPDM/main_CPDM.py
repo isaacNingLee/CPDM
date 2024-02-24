@@ -130,8 +130,17 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                         most_confidence = CPDM_train.do_find_avg(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     elif args.image_condition == 'canny':
                         most_confidence = CPDM_train.do_find_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+                    elif args.image_condition == 'bmw_canny':
+                        most_confidence = CPDM_train.do_find_best_mid_worst_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+                    elif args.image_condition == 'triple_canny':
+                        most_confidence = CPDM_train.do_find_triple_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+                    elif args.image_condition == 'dct':
+                        most_confidence = CPDM_train.do_find_dct(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     else:
                         most_confidence = CPDM_train.do_find_most_confidence(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+
+
+
                     os.makedirs(os.path.join(exp_dir, 'image-condition', 'start', 'tensors'), exist_ok=True)
                     for key, value in most_confidence.items():
                         torch.save(value, os.path.join(exp_dir, 'image-condition', 'start', 'tensors', f'{key}.pt'))
@@ -246,39 +255,20 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
         fid_cache = os.path.join(extracted_path, 'stats', 'task_{}_stats.npz'.format(task_counter))
         print(f"Statistics Task {task_counter}\n")
 
-        try:
-            is_score, fid_score = get_inception_and_fid_score(images, labels,  fid_cache, num_images=None, splits=10, batch_size=50) # 6, 31
-        except ValueError:
-            print("ValueError: FID score is not computed")
-
-        parts = dataset_path.split('/')
-        extracted_path = '/'.join(parts[:-1]) if len(parts) > 1 else dataset_path
-        extracted_path += '/train'
-            
-        cmmd = compute_cmmd(extracted_path, samples_path, batch_size=50, max_count=-1)
-
-        print(f'CMMD: {cmmd}')
-
-        print()
+        # try:
+        #     is_score, fid_score = get_inception_and_fid_score(images, labels,  fid_cache, num_images=None, splits=10, batch_size=50) # 6, 31
+        # except ValueError:
+        #     print("ValueError: FID score is not computed")
 
         # parts = dataset_path.split('/')
-        # extracted_path = '/'.join(parts[:-2]) if len(parts) > 2 else dataset_path
-        
-        # is_list = []
-        # fid_list = []
+        # extracted_path = '/'.join(parts[:-1]) if len(parts) > 1 else dataset_path
+        # extracted_path += '/train'
+            
+        # cmmd = compute_cmmd(extracted_path, samples_path, batch_size=50, max_count=-1)
 
-        # print("Statistics\n")
-        # for class_id in range(100):
+        # print(f'CMMD: {cmmd}')
 
-        #     fid_cache = os.path.join(extracted_path, 'stats', f'class_{class_id}_stats.npz')
-        #     is_score, fid_score = get_inception_and_fid_score(images[class_id], labels[class_id],  fid_cache, num_images=None, splits=10, batch_size=50)
-
-        #     is_list.append(is_score)
-        #     fid_list.append(fid_score)
-
-        #     print(f'Class {class_id}: IS: {is_score}, FID: {fid_score}')
-        
-        # print(f'Average IS: {np.mean(is_list)}, Average FID: {np.mean(fid_list)}')
+        # print()
 
         _labels_list = deepcopy(labels_list)
         if not args.diffusion_without_replay:

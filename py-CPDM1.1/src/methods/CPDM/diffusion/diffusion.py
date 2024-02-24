@@ -27,8 +27,10 @@ from .my_diffusers.schedulers.scheduling_ddpm import MyDDPMScheduler
 from .discriminator import Discriminator
 from .unet_discriminator import get_encoder_unet_condition_model
 
-from torch.autograd import Variable
 
+from torch.autograd import Variable
+import torch_dct
+import kornia as ki
 
 def get_mean(dataset):
     if dataset == 'cifar100CI':
@@ -446,8 +448,12 @@ class Diffusion():
                         if generated[labels[count]] < args.num_samples:
                             if not force_sample:
                                 if preds[count] == labels[count]:
-                                    
-                                        img = inputs[count].unsqueeze(0)
+                                        # unnormalize the image
+                                        
+                                        img = inputs[count] * get_std(args.ds_name).view(3, 1, 1) + get_mean(args.ds_name).view(3, 1, 1)
+                                        img = img.unsqueeze(0)
+
+                                        ###
                                         img = (img / 2 + 0.5).clamp(0, 1)
                                         img = (img.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
                                         img = img.contiguous()
@@ -577,10 +583,28 @@ class Diffusion():
                 noisy_images = self.train_scheduler.add_noise(batch, noise, timesteps)
                 model_input = noisy_images
                 if self.most_confidence is not None:
-                    image_conditions = torch.stack(
-                        [self.most_confidence[label.item()] for label in labels],
-                        dim=0
-                    )
+
+                    if self.args.image_condition == 'dct':
+                        im_cond = []
+                        for label in labels:
+                            fft2d = torch.zeros(noisy_images.shape).to(self.accelerator.device, non_blocking=True)
+                            # self.most_confidence[label.item()] = torch.cat([fft2d[0, 0:args.dct_luma, 0:args.dct_luma].reshape(1,1,-1), fft2d[1, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1), fft2d[2, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1)], dim=2)
+                            # reconstruct fft2d from it
+                            fft2d[0, 0:self.args.dct_luma, 0:self.args.dct_luma] = self.most_confidence[label.item()][:,:, 0:self.args.dct_luma ** 2].reshape(1,self.args.dct_luma,self.args.dct_luma)
+                            fft2d[1, 0:self.args.dct_chroma, 0:self.args.dct_chroma] = self.most_confidence[label.item()][:,:, self.args.dct_luma ** 2 :  self.args.dct_luma ** 2 + self.args.dct_chroma **2].reshape(1,self.args.dct_chroma,self.args.dct_chroma)
+                            fft2d[2, 0:self.args.dct_chroma, 0:self.args.dct_chroma] = self.most_confidence[label.item()][:,:,self.args.dct_luma ** 2 + self.args.dct_chroma **2:].reshape(1,self.args.dct_chroma,self.args.dct_chroma)
+                            im_cond.append(ki.color.ycbcr.ycbcr_to_rgb(torch_dct.idct_2d(fft2d)))
+
+                        image_conditions = torch.stack(im_cond, dim=0)
+
+
+                    else:
+                        image_conditions = torch.stack(
+                            [self.most_confidence[label.item()] for label in labels],
+                            dim=0
+                        )
+
+
                     model_input = torch.cat((image_conditions, noisy_images), dim=1)
 
                 mask_adaptive_shape = [bs] + [1] * (len(self.labels_embedding.shape) - 1)

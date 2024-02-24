@@ -12,6 +12,8 @@ import kornia as ki
 import matplotlib.pyplot as plt
 
 import pandas as pd
+from queue import PriorityQueue
+import torch_dct
 
 
 TRAINING_DONE_TOKEN = 'CLASSIFIER.TRAINING.DONE'
@@ -453,15 +455,170 @@ def do_find_canny(args, model, train_dset, batch_size, use_cuda, combine_label_l
                 value = prob[label].item()
                 if value > best[_label.item()]:
                     best[_label.item()] = value
-                    ##
-                    # TODO implement canny edge detection
-                    ##
                     # convert input to PIL image
                     _, canny = ki.filters.canny(input.unsqueeze(0))
                     result[_label.item()] = F.interpolate(canny.cpu(), size=args.image_size)[0]
     return result
 
 
+def do_find_triple_canny(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
+    train_loader = torch.utils.data.DataLoader(train_dset, batch_size=batch_size, num_workers=16,
+                                                    shuffle=True, pin_memory=True, persistent_workers=True)
+    this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
+    result = dict()
+    best = dict()
+    for label in current_label_list:
+        best[label] = PriorityQueue(maxsize=3)
+
+    model.train(False)
+    with torch.no_grad():
+        for data in tqdm(train_loader, desc='find most confidence'):
+            inputs, _labels = data
+            if 'mnist' in args.ds_name:
+                inputs = inputs.squeeze()
+            if args.class_incremental or args.class_incremental_repetition:
+                l = [this_task_class_to_idx[_labels[i].item()] for i in range(len(_labels))]
+                ll = torch.tensor(l).reshape(_labels.shape)
+                labels = ll
+
+            if use_cuda:
+                inputs, labels = Variable(inputs.cuda(non_blocking=True)), \
+                                    Variable(labels.cuda(non_blocking=True))
+            else:
+                inputs, labels = Variable(inputs), Variable(labels)
+
+            if args.class_incremental or args.class_incremental_repetition:
+                logits = model(inputs,combine_label_list)
+            else:
+                logits = model(inputs)
+            probs = torch.softmax(logits, dim=1)
+            # save top 3 canny images
+            for input, label, _label, prob in zip(inputs, labels, _labels, probs):
+                value = prob[label].item()
+                # If the queue is not full or the current value is larger than the smallest value in the queue
+                if not best[_label.item()].full() or value > best[_label.item()].queue[0][0]:
+                    # convert input to PIL image
+                    _, canny = ki.filters.canny(input.unsqueeze(0))
+                    image = F.interpolate(canny.cpu(), size=args.image_size)[0]
+                    # Add the new value and image to the queue
+                    best[_label.item()].put((value, image))
+                    # If the queue is full, remove the smallest value
+                    if best[_label.item()].qsize() > 3:
+                        best[_label.item()].get()
+
+        for label in best:
+            # Get the images from the queue and reverse the list to get the images in descending order of their values
+            images = [img for _, img in sorted(best[label].queue, reverse=True)]
+            # Concatenate the images along the 0th dimension (assuming the images are 3D tensors with shape (channels, height, width))
+            concatenated_images = torch.cat(images, dim=0)
+            # Put the concatenated images into the result dictionary
+            result[label] = concatenated_images
+            
+    return result
+
+def do_find_best_mid_worst_canny(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
+    train_loader = torch.utils.data.DataLoader(train_dset, batch_size=batch_size, num_workers=16,
+                                                    shuffle=True, pin_memory=True, persistent_workers=True)
+    this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
+    result = dict()
+    best = dict()
+    for label in current_label_list:
+        best[label] = PriorityQueue(maxsize=3)
+
+    model.train(False)
+    with torch.no_grad():
+        for data in tqdm(train_loader, desc='find most confidence'):
+            inputs, _labels = data
+            if 'mnist' in args.ds_name:
+                inputs = inputs.squeeze()
+            if args.class_incremental or args.class_incremental_repetition:
+                l = [this_task_class_to_idx[_labels[i].item()] for i in range(len(_labels))]
+                ll = torch.tensor(l).reshape(_labels.shape)
+                labels = ll
+
+            if use_cuda:
+                inputs, labels = Variable(inputs.cuda(non_blocking=True)), \
+                                    Variable(labels.cuda(non_blocking=True))
+            else:
+                inputs, labels = Variable(inputs), Variable(labels)
+
+            if args.class_incremental or args.class_incremental_repetition:
+                logits = model(inputs,combine_label_list)
+            else:
+                logits = model(inputs)
+            probs = torch.softmax(logits, dim=1)
+            # save top 3 canny images
+            for input, label, _label, prob in zip(inputs, labels, _labels, probs):
+                value = prob[label].item()
+                # convert input to PIL image
+                _, canny = ki.filters.canny(input.unsqueeze(0))
+                image = F.interpolate(canny.cpu(), size=args.image_size)[0]
+                # Add the new value and image to the list
+                best[_label.item()].append((value, image))
+
+            for label in best:
+                # Sort the list by value in ascending order
+                best[label] = sorted(best[label], key=lambda x: x[0])
+
+        for label in best:
+            # Get the images from the list
+            images = [img for _, img in best[label]]
+            # Get the best, worst, and mid images
+            worst_image = images[0]
+            mid_image = images[len(images) // 2]
+            best_image = images[-1]
+            # Concatenate the images along the 0th dimension (assuming the images are 3D tensors with shape (channels, height, width))
+            concatenated_images = torch.cat([worst_image, mid_image, best_image], dim=0)
+            # Put the concatenated images into the result dictionary
+            result[label] = concatenated_images
+
+    return result
+
+def do_find_dct(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
+    train_loader = torch.utils.data.DataLoader(train_dset, batch_size=batch_size, num_workers=16,
+                                                    shuffle=True, pin_memory=True, persistent_workers=True)
+    this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
+    result = dict()
+    best = dict()
+    for label in current_label_list:
+        best[label] = 0.0
+    model.train(False)
+    with torch.no_grad():
+        for data in tqdm(train_loader, desc='find most confidence'):
+            inputs, _labels = data
+            if 'mnist' in args.ds_name:
+                inputs = inputs.squeeze()
+            if args.class_incremental or args.class_incremental_repetition:
+                l = [this_task_class_to_idx[_labels[i].item()] for i in range(len(_labels))]
+                ll = torch.tensor(l).reshape(_labels.shape)
+                labels = ll
+
+            if use_cuda:
+                inputs, labels = Variable(inputs.cuda(non_blocking=True)), \
+                                    Variable(labels.cuda(non_blocking=True))
+            else:
+                inputs, labels = Variable(inputs), Variable(labels)
+
+            if args.class_incremental or args.class_incremental_repetition:
+                logits = model(inputs,combine_label_list)
+            else:
+                logits = model(inputs)
+            probs = torch.softmax(logits, dim=1)
+            for input, label, _label, prob in zip(inputs, labels, _labels, probs):
+                value = prob[label].item()
+                if value > best[_label.item()]:
+                    best[_label.item()] = value
+                    fft2d =torch_dct.dct_2d(ki.color.ycbcr.rgb_to_ycbcr(input))
+                    fft2d[1:,args.dct_chroma:,args.dct_chroma:] = 0
+                    fft2d[0, args.dct_luma:, args.dct_luma:] = 0
+                    
+
+                    result[_label.item()] = torch.cat([fft2d[0, 0:args.dct_luma, 0:args.dct_luma].reshape(1,1,-1), fft2d[1, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1), fft2d[2, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1)], dim=2)
+    return result
+
+
+
+    
 def do_random(args, current_label_list):
     result = dict()
     for label in current_label_list:

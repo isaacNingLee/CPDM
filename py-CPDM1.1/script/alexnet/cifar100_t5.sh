@@ -25,7 +25,7 @@ python run_CPDM.py \
     --diffusion_steps 1000 \
     --num_inference_timesteps 100 \
     --diffusion_lr 1e-4 \
-    --diffusion_batch_size 64 \
+    --diffusion_batch_size 16 \
     --diffusion_lr_warmup_steps 500 \
     --lr_anneal_steps 15000 \
     --log_interval 10 \
