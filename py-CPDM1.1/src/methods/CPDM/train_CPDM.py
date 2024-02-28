@@ -12,7 +12,7 @@ import kornia as ki
 import matplotlib.pyplot as plt
 
 import pandas as pd
-from queue import PriorityQueue
+import src.methods.CPDM.filters as filters
 import torch_dct
 
 
@@ -468,7 +468,8 @@ def do_find_triple_canny(args, model, train_dset, batch_size, use_cuda, combine_
     result = dict()
     best = dict()
     for label in current_label_list:
-        best[label] = PriorityQueue(maxsize=3)
+        best[label] = torch.zeros((3,1))
+
 
     model.train(False)
     with torch.no_grad():
@@ -492,38 +493,32 @@ def do_find_triple_canny(args, model, train_dset, batch_size, use_cuda, combine_
             else:
                 logits = model(inputs)
             probs = torch.softmax(logits, dim=1)
-            # save top 3 canny images
             for input, label, _label, prob in zip(inputs, labels, _labels, probs):
                 value = prob[label].item()
-                # If the queue is not full or the current value is larger than the smallest value in the queue
-                if not best[_label.item()].full() or value > best[_label.item()].queue[0][0]:
+                min_val, idx = torch.min(best[_label.item()], dim=0)
+                if value > min_val:
+                    if not _label.item() in result:
+                        result[_label.item()] = torch.zeros((3, args.image_size, args.image_size))
+
+                    best[_label.item()][idx] = value
                     # convert input to PIL image
                     _, canny = ki.filters.canny(input.unsqueeze(0))
-                    image = F.interpolate(canny.cpu(), size=args.image_size)[0]
-                    # Add the new value and image to the queue
-                    best[_label.item()].put((value, image))
-                    # If the queue is full, remove the smallest value
-                    if best[_label.item()].qsize() > 3:
-                        best[_label.item()].get()
+                    result[_label.item()][idx] = F.interpolate(canny.cpu(), size=args.image_size)[0]
 
-        for label in best:
-            # Get the images from the queue and reverse the list to get the images in descending order of their values
-            images = [img for _, img in sorted(best[label].queue, reverse=True)]
-            # Concatenate the images along the 0th dimension (assuming the images are 3D tensors with shape (channels, height, width))
-            concatenated_images = torch.cat(images, dim=0)
-            # Put the concatenated images into the result dictionary
-            result[label] = concatenated_images
-            
     return result
 
-def do_find_best_mid_worst_canny(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
+def do_find_best_mean_worst_canny(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
     train_loader = torch.utils.data.DataLoader(train_dset, batch_size=batch_size, num_workers=16,
                                                     shuffle=True, pin_memory=True, persistent_workers=True)
     this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
     result = dict()
-    best = dict()
+    val_dict = dict()
     for label in current_label_list:
-        best[label] = PriorityQueue(maxsize=3)
+        val_dict[label] = [0] * 2 #0 - best, 1- worst
+        val_dict[label][0] = 0.0
+        val_dict[label][1] = 1.0
+    
+    label_count = dict()
 
     model.train(False)
     with torch.no_grad():
@@ -547,30 +542,30 @@ def do_find_best_mid_worst_canny(args, model, train_dset, batch_size, use_cuda, 
             else:
                 logits = model(inputs)
             probs = torch.softmax(logits, dim=1)
-            # save top 3 canny images
             for input, label, _label, prob in zip(inputs, labels, _labels, probs):
                 value = prob[label].item()
-                # convert input to PIL image
                 _, canny = ki.filters.canny(input.unsqueeze(0))
-                image = F.interpolate(canny.cpu(), size=args.image_size)[0]
-                # Add the new value and image to the list
-                best[_label.item()].append((value, image))
+                stored = F.interpolate(canny.cpu(), size=args.image_size)[0].squeeze(0)
 
-            for label in best:
-                # Sort the list by value in ascending order
-                best[label] = sorted(best[label], key=lambda x: x[0])
+                if not _label.item() in result:
+                    result[_label.item()] = torch.zeros((3, args.image_size, args.image_size)) #0-best, 1-worst, 2-mean
+                    label_count[_label.item()] = 0
 
-        for label in best:
-            # Get the images from the list
-            images = [img for _, img in best[label]]
-            # Get the best, worst, and mid images
-            worst_image = images[0]
-            mid_image = images[len(images) // 2]
-            best_image = images[-1]
-            # Concatenate the images along the 0th dimension (assuming the images are 3D tensors with shape (channels, height, width))
-            concatenated_images = torch.cat([worst_image, mid_image, best_image], dim=0)
-            # Put the concatenated images into the result dictionary
-            result[label] = concatenated_images
+                if value > val_dict[_label.item()][0]:
+                    val_dict[_label.item()][0] = value
+                    
+                    result[_label.item()][0] = stored
+
+                if value < val_dict[_label.item()][1]:
+                    val_dict[_label.item()][1] = value
+                    result[_label.item()][1] = stored
+
+                result[_label.item()][2] += stored
+                label_count[_label.item()] += 1
+
+    for label in current_label_list:
+        result[label][2] = result[label][2] / label_count[label]
+
 
     return result
 
@@ -613,10 +608,48 @@ def do_find_dct(args, model, train_dset, batch_size, use_cuda, combine_label_lis
                     fft2d[0, args.dct_luma:, args.dct_luma:] = 0
                     
 
-                    result[_label.item()] = torch.cat([fft2d[0, 0:args.dct_luma, 0:args.dct_luma].reshape(1,1,-1), fft2d[1, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1), fft2d[2, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1)], dim=2)
+                    result[_label.item()] = torch.cat([fft2d[0, 0:args.dct_luma, 0:args.dct_luma].reshape(1,1,-1), fft2d[1, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1), fft2d[2, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1)], dim=2).cpu()
     return result
 
+def do_find_lhb_filter(args, model, train_dset, batch_size, use_cuda, combine_label_list, current_label_list):
+    train_loader = torch.utils.data.DataLoader(train_dset, batch_size=batch_size, num_workers=16,
+                                                    shuffle=True, pin_memory=True, persistent_workers=True)
+    this_task_class_to_idx = {combine_label_list[i]: i for i in range(len(combine_label_list))}
+    result = dict()
+    best = dict()
+    for label in current_label_list:
+        best[label] = 0.0
+    model.train(False)
+    with torch.no_grad():
+        for data in tqdm(train_loader, desc='find most confidence'):
+            inputs, _labels = data
+            if 'mnist' in args.ds_name:
+                inputs = inputs.squeeze()
+            if args.class_incremental or args.class_incremental_repetition:
+                l = [this_task_class_to_idx[_labels[i].item()] for i in range(len(_labels))]
+                ll = torch.tensor(l).reshape(_labels.shape)
+                labels = ll
 
+            if use_cuda:
+                inputs, labels = Variable(inputs.cuda(non_blocking=True)), \
+                                    Variable(labels.cuda(non_blocking=True))
+            else:
+                inputs, labels = Variable(inputs), Variable(labels)
+
+            if args.class_incremental or args.class_incremental_repetition:
+                logits = model(inputs,combine_label_list)
+            else:
+                logits = model(inputs)
+            probs = torch.softmax(logits, dim=1)
+            for input, label, _label, prob in zip(inputs, labels, _labels, probs):
+                value = prob[label].item()
+                if value > best[_label.item()]:
+                    best[_label.item()] = value
+                    low = filters.LowPassFilter(args.low_cutoff, args.kernel_size)
+                    high = filters.HighPassFilter(args.high_cutoff, args.kernel_size)
+                    band = filters.BandPassFilter(args.low_cutoff, args.high_cutoff, args.kernel_size)
+                    result[_label.item()] = torch.cat([low(input).cpu().squeeze(0), high(input).cpu().squeeze(0), band(input).cpu().squeeze(0)], dim=0)
+    return result
 
     
 def do_random(args, current_label_list):

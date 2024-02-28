@@ -190,6 +190,8 @@ def get_exp_name(args, method):
                 exp_name.append("ema_rate={}".format(args.ema_rate))
             if args.toy:
                 exp_name.append("toy")
+
+        
     if args.weight_decay != 0:
         exp_name.append("L2={}".format(args.weight_decay))
     for h_key, h_val in method.hyperparams.items():
@@ -283,7 +285,13 @@ def get_train_results_path(tr_results_root_path, dataset_obj, method_name=None, 
         path = os.path.join(path, 'sample_correct')
     else:
         path = os.path.join(path, 'no_sample_correct')
-        
+
+    
+    if args.gen_replay_conditioning:
+        ##TODO place to put exp name
+        path = os.path.join(path, 'gen_replay_conditioning')
+
+
     return path
 
 

@@ -84,13 +84,7 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                                     exp_dir=exp_dir,resume=resume, saving_freq=saving_freq,device=device,
                                                     combine_label_list=combine_label_list,gen_dset=None,
                                                     test_ds_path=test_ds_path)
-        test_model_paths.append(os.path.join(exp_dir, 'best_model.pth.tar'))
-        combine_order_name = os.path.join(exp_dir,
-                                        "generator_label_list_order_seed={}.pkl".format(args.CI_order_rndseed))
-        print("Order name:{}".format(combine_order_name))
-        print("Current label_list: {}".format(combine_label_list))
-        utils.savepickle(combine_label_list, combine_order_name)
-        test.main(args, manager, test_ds_path, test_model_paths)
+
         
         if (args.max_task_count > 1) and (not os.path.exists(os.path.join(exp_dir, TRAINING_DONE_TOKEN))):
             print("CPDM training preparing")
@@ -131,11 +125,13 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                     elif args.image_condition == 'canny':
                         most_confidence = CPDM_train.do_find_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     elif args.image_condition == 'bmw_canny':
-                        most_confidence = CPDM_train.do_find_best_mid_worst_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+                        most_confidence = CPDM_train.do_find_best_mean_worst_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     elif args.image_condition == 'triple_canny':
                         most_confidence = CPDM_train.do_find_triple_canny(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     elif args.image_condition == 'dct':
                         most_confidence = CPDM_train.do_find_dct(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
+                    elif args.image_condition == 'lhb_filter':
+                        most_confidence = CPDM_train.do_find_lhb_filter(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
                     else:
                         most_confidence = CPDM_train.do_find_most_confidence(args, model_ft, dsets['train'], batch_size, use_cuda, combine_label_list, combine_label_list)
 
@@ -150,6 +146,53 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                 diffusion.save_most_confidence()
             update_stage_times(0, time.time() - start_preprocess_time, filename=exp_dir + '/' + 'diffusion_training_times.json')
             torch.save('', os.path.join(exp_dir, TRAINING_DONE_TOKEN))
+
+            #####################
+
+            if args.gen_replay_conditioning:
+                sample_start_time = time.time()
+                samples_path = os.path.join(exp_dir, 'samples')
+
+                if args.sample_correct:
+                    generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample_correct(args, model_ft, samples_path, 
+                                                                                                                    combine_label_list, dataset_path, combine_label_list, 
+                                                                                                                    use_cuda = use_cuda)
+                else:
+                    generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample(samples_path=samples_path,
+                                                                                                                label_order_list=combine_label_list,
+                                                                                                                dataset_path=dataset_path
+                                                                                                                )
+
+
+                utils.savepickle(data=generator_img_path_label_list,file_path=os.path.join(exp_dir,"generator_img_path_label_list_stage.pkl"))
+                utils.savepickle(data=generator_classes,file_path=os.path.join(exp_dir, "generator_classes_stage.pkl"))
+                utils.savepickle(data=generator_class_to_idx, file_path=os.path.join(exp_dir, "generator_class_to_idx_stage.pkl"))
+                sample_end_time = time.time()
+                update_stage_times(0, sample_end_time - sample_start_time, filename=exp_dir + '/' + 'sample_times.json')
+                gen_dset = combine_data_loader(args,
+                                                generator_img_path_label_list,
+                                                generator_classes,
+                                                generator_class_to_idx,
+                                                dsets)
+
+                model_ft, best_acc = CPDM_train.train_model(args=args,model=model_ft, criterion=criterion,
+                                                    optimizer=optimizer_ft,lr = lr,
+                                                    dsets = dsets, batch_size = batch_size, dset_sizes = dset_sizes,
+                                                    use_cuda = use_cuda, num_epochs = num_epochs,task_counter = task_counter,
+                                                    exp_dir=exp_dir,resume='', saving_freq=saving_freq,device=device,
+                                                    combine_label_list=combine_label_list,gen_dset=gen_dset,
+                                                    test_ds_path=test_ds_path)
+
+            ##################
+
+        test_model_paths.append(os.path.join(exp_dir, 'best_model.pth.tar'))
+        combine_order_name = os.path.join(exp_dir,
+                                        "generator_label_list_order_seed={}.pkl".format(args.CI_order_rndseed))
+        print("Order name:{}".format(combine_order_name))
+        print("Current label_list: {}".format(combine_label_list))
+        utils.savepickle(combine_label_list, combine_order_name)
+        test.main(args, manager, test_ds_path, test_model_paths)
+
 
     else:
         print('load model')
@@ -291,13 +334,7 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                                     exp_dir=exp_dir,resume=resume, saving_freq=saving_freq,device=device,
                                                     combine_label_list=combine_label_list,gen_dset=gen_dset,
                                                     test_ds_path=test_ds_path)
-        test_model_paths.append(os.path.join(exp_dir, 'best_model.pth.tar'))
-        combine_order_name = os.path.join(exp_dir,
-                                        "generator_label_list_order_seed={}.pkl".format(args.CI_order_rndseed))
-        print("Order name:{}".format(combine_order_name))
-        print("Current label_list: {}".format(combine_label_list))
-        utils.savepickle(combine_label_list, combine_order_name)
-        test.main(args, manager, test_ds_path, test_model_paths)
+
 
         dont_train_diffusion = (task_counter == args.max_task_count - 1)
         if (not dont_train_diffusion) and (not os.path.exists(os.path.join(exp_dir, TRAINING_DONE_TOKEN))):
@@ -344,6 +381,51 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
             diffusion.train(dataset=generator_data, batch_size=args.diffusion_batch_size, num_steps=args.lr_anneal_steps, classifier=classifier)
             if args.image_condition != 'none':
                 diffusion.save_most_confidence()
+
+            if args.gen_replay_conditioning:
+                sample_start_time = time.time()
+
+                if args.sample_correct:
+                    generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample_correct(args, model_ft, samples_path, 
+                                                                                                                    label_order_list, dataset_path, combine_label_list, 
+                                                                                                                    use_cuda = use_cuda)
+                else:
+                    generator_img_path_label_list, generator_classes, generator_class_to_idx = diffusion.sample(samples_path=samples_path,
+                                                                                                                label_order_list=label_order_list,
+                                                                                                                dataset_path=dataset_path
+                                                                                                                )
+
+
+                utils.savepickle(data=generator_img_path_label_list,file_path=os.path.join(exp_dir,"generator_img_path_label_list_stage.pkl"))
+                utils.savepickle(data=generator_classes,file_path=os.path.join(exp_dir, "generator_classes_stage.pkl"))
+                utils.savepickle(data=generator_class_to_idx, file_path=os.path.join(exp_dir, "generator_class_to_idx_stage.pkl"))
+                sample_end_time = time.time()
+                update_stage_times(0, sample_end_time - sample_start_time, filename=exp_dir + '/' + 'sample_times.json')
+                gen_dset = combine_data_loader(args,
+                                                generator_img_path_label_list,
+                                                generator_classes,
+                                                generator_class_to_idx,
+                                                dsets)
+
+                model_ft, best_acc = CPDM_train.train_model(args=args,model=model_ft, criterion=criterion,
+                                                    optimizer=optimizer_ft,lr = lr,
+                                                    dsets = dsets, batch_size = batch_size, dset_sizes = dset_sizes,
+                                                    use_cuda = use_cuda, num_epochs = num_epochs,task_counter = task_counter,
+                                                    exp_dir=exp_dir,resume='', saving_freq=saving_freq,device=device,
+                                                    combine_label_list=combine_label_list,gen_dset=gen_dset,
+                                                    test_ds_path=test_ds_path)    
+                
+
+
+            test_model_paths.append(os.path.join(exp_dir, 'best_model.pth.tar'))
+            combine_order_name = os.path.join(exp_dir,
+                                            "generator_label_list_order_seed={}.pkl".format(args.CI_order_rndseed))
+            print("Order name:{}".format(combine_order_name))
+            print("Current label_list: {}".format(combine_label_list))
+            utils.savepickle(combine_label_list, combine_order_name)
+            test.main(args, manager, test_ds_path, test_model_paths)
+                
+
             update_stage_times(0, time.time() - start_preprocess_time, filename=exp_dir + '/' + 'diffusion_training_times.json')
             torch.save('', os.path.join(exp_dir, TRAINING_DONE_TOKEN))
 

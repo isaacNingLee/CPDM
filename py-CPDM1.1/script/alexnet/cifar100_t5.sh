@@ -25,7 +25,7 @@ python run_CPDM.py \
     --diffusion_steps 1000 \
     --num_inference_timesteps 100 \
     --diffusion_lr 1e-4 \
-    --diffusion_batch_size 16 \
+    --diffusion_batch_size 64 \
     --diffusion_lr_warmup_steps 500 \
     --lr_anneal_steps 15000 \
     --log_interval 10 \
@@ -38,8 +38,9 @@ python run_CPDM.py \
     --image_condition_learn_L2 1e-2 \
     --max_grad_norm \
     --tau 1e-4 \
-    --contrastive_loss \
+    --diversity_loss \
     --rho 1e-8 \
-    --CI_order_rndseed 19662371 \
+    --CI_order_rndseed 192371 \
     --nearest_label cosine \
-    --sample_correct \
+
+# always check grad condition in TODO tree to see whether it is enabled

@@ -124,7 +124,7 @@ def save_to_JPEG(num_samples,all_images,all_labels,all_class_name,output_path):
             class_to_idx.add(label_arr[fig_count])
             classes.add(class_name)
             filepath = os.path.join(output_path,
-                                    "{}_generator{}.JPEG".format(class_name, fig_count))
+                                    "{}_generator{}.PNG".format(class_name, fig_count)) # TODO: samples file format
             img_path_label_list.append((filepath, label_arr[fig_count]))
             output_img(filepath, np.array(arr[fig_count]))
     dist.barrier()
@@ -310,7 +310,7 @@ class Diffusion():
             )
             if self.args.image_condition == 'buffer':
                 self.most_confidence[label].requires_grad = False
-            elif self.args.image_condition in ['learn', 'learn_from_noise']:
+            elif self.args.image_condition in ['learn_from_noise', 'triple_canny', 'bmw_canny', 'dct', 'lhb_filter']: #### TODO check grad when add image condition option
                 self.most_confidence[label].requires_grad = True
         os.makedirs(os.path.join(self.curtask_path, 'image-condition', 'start', 'images'), exist_ok=True)
         mean = get_mean(self.args.ds_name)
@@ -322,7 +322,7 @@ class Diffusion():
             )
         for key, value in self.most_confidence.items():
             self.most_confidence[key] = value.to(self.accelerator.device)
-        if self.args.image_condition in ['learn', 'learn_from_noise']:
+        if self.args.image_condition in ['learn_from_noise', 'triple_canny', 'bmw_canny', 'dct', 'lhb_filter']: #### TODO check grad when add image condition option
             for label in self.curtask_labels:
                 self.most_confidence[label].retain_grad()
 
@@ -443,18 +443,15 @@ class Diffusion():
 
                     # check if correctly classified
                     # if not, discard and resample
-                    
+                    mean = get_mean(self.args.ds_name)
+                    std = get_std(self.args.ds_name)
                     for count in range(len(labels)):
                         if generated[labels[count]] < args.num_samples:
                             if not force_sample:
                                 if preds[count] == labels[count]:
-                                        # unnormalize the image
-                                        
-                                        img = inputs[count] * get_std(args.ds_name).view(3, 1, 1) + get_mean(args.ds_name).view(3, 1, 1)
-                                        img = img.unsqueeze(0)
-
-                                        ###
-                                        img = (img / 2 + 0.5).clamp(0, 1)
+                                        img = inputs[count].unsqueeze(0)
+                                        #img = (img / 2 + 0.5).clamp(0, 1)
+                                        img = img.mul(std.view(1,3,1,1).cuda()).add(mean.view(1,3,1,1).cuda()).clamp(0,1) #TODO: check revert-norm
                                         img = (img.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
                                         img = img.contiguous()
 
@@ -463,7 +460,8 @@ class Diffusion():
                                         generated[labels[count]] += 1
                             else:
                                     img = inputs[count].unsqueeze(0)
-                                    img = (img / 2 + 0.5).clamp(0, 1)
+                                    img = img.mul(std.view(1,3,1,1).cuda()).add(mean.view(1,3,1,1).cuda()).clamp(0,1) #TODO: check revert-norm
+                                    #img = (img / 2 + 0.5).clamp(0, 1)
                                     img = (img.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
                                     img = img.contiguous()
 
@@ -542,7 +540,11 @@ class Diffusion():
                         noisy_residual = self.model(model_input, t, encoder_hidden_states).sample
                 previous_noisy_sample = self.inference_scheduler.step(noisy_residual, t, sample).prev_sample
                 sample = previous_noisy_sample
-            sample = (sample / 2 + 0.5).clamp(0, 1)
+
+            mean = get_mean(self.args.ds_name)
+            std = get_std(self.args.ds_name)
+            #sample = (sample / 2 + 0.5).clamp(0, 1) # 3, 64, 64, #TODO: check revert-norm
+            sample = sample.mul(std.view(1,3,1,1).cuda()).add(mean.view(1,3,1,1).cuda()).clamp(0,1) #TODO: check revert-norm
             sample = (sample.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
             sample = sample.contiguous()
             gathered_samples = [torch.zeros_like(sample) for _ in range(dist.get_world_size())]
@@ -587,7 +589,7 @@ class Diffusion():
                     if self.args.image_condition == 'dct':
                         im_cond = []
                         for label in labels:
-                            fft2d = torch.zeros(noisy_images.shape).to(self.accelerator.device, non_blocking=True)
+                            fft2d = torch.zeros(noisy_images[0].shape).to(self.accelerator.device, non_blocking=True)
                             # self.most_confidence[label.item()] = torch.cat([fft2d[0, 0:args.dct_luma, 0:args.dct_luma].reshape(1,1,-1), fft2d[1, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1), fft2d[2, 0:args.dct_chroma, 0:args.dct_chroma].reshape(1,1,-1)], dim=2)
                             # reconstruct fft2d from it
                             fft2d[0, 0:self.args.dct_luma, 0:self.args.dct_luma] = self.most_confidence[label.item()][:,:, 0:self.args.dct_luma ** 2].reshape(1,self.args.dct_luma,self.args.dct_luma)
@@ -655,7 +657,7 @@ class Diffusion():
                             )[0].detach().clone()
                             nearest_noise_pred = pred[:len(c_noise_pred)]
                             furthest_noise_pred = pred[len(c_noise_pred):]
-                            # TODO normalize them !!!!
+
                             
                             cosine_triplet_loss = torch.mean(
                                 F.triplet_margin_with_distance_loss(c_noise_pred.reshape(len(c_noise_pred), -1), nearest_noise_pred.reshape(len(c_noise_pred), -1), furthest_noise_pred.reshape(len(c_noise_pred), -1), distance_function = nn.CosineSimilarity() ,reduction='none') \

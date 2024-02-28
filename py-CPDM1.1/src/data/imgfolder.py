@@ -53,7 +53,7 @@ def default_loader(path):
         return pil_loader(path)
 
 
-def make_dataset(dir, class_to_idx, file_list):
+def make_dataset(dir, class_to_idx, file_list): # TODO: place to load imgs
     images = []
 
     dir = os.path.expanduser(dir)

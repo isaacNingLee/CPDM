@@ -69,7 +69,7 @@
                 "--use_fp16",
                 "True",
                 "--diffusion_steps",
-                "1000",
+                "10000",
                 "--num_inference_timesteps",
                 "100",
                 "--diffusion_lr",
@@ -91,7 +91,7 @@
                 "--w",
                 "3.0",
                 "--image_condition",
-                "learn",
+                "canny",
                 "--image_condition_learn_lr",
                 "1e-2",
                 "--image_condition_learn_L2",
@@ -102,11 +102,10 @@
                 "--tau",
                 "1e-4",
                 "--CI_order_rndseed",
-                "19662371",
-                "--contrastive_loss",
+                "121",
+                "--diversity_loss",
                 "--rho",
                 "1e-8",
-                "--sample_correct"
             ]
             // "args": [
             //     "--class_incremental",
