@@ -6,7 +6,7 @@
 # NOTE: To activate a SLURM option, remove the whitespace between the '#' and 'SBATCH'
 
 # To give your job a name, replace "MyJob" with an appropriate name
-#SBATCH --job-name=isaacLee_normal_div_no_update_normal_sampling
+#SBATCH --job-name=isaacLee_triple_canny_contrast
 
 
 # To set a project account for credit charging, 
@@ -45,10 +45,10 @@
 
 
 # Set the file for output (stdout)
-#SBATCH --output=/home/ilee0022/ml20_scratch/ilee0022/CPDM/logs/isaacLee_normal_div_no_update_normal_sampling.out
+#SBATCH --output=/home/ilee0022/ml20_scratch/ilee0022/CPDM/logs/isaacLee_triple_canny_contrast.out
 
 # Set the file for error log (stderr)
-#SBATCH --error=/home/ilee0022/ml20_scratch/ilee0022/CPDM/logs/isaacLee_normal_div_no_update_normal_sampling.err
+#SBATCH --error=/home/ilee0022/ml20_scratch/ilee0022/CPDM/logs/isaacLee_triple_canny_contrast.err
 
 
 # Use reserved node to run job when a node reservation is made for you already

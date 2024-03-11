@@ -124,7 +124,7 @@ def save_to_JPEG(num_samples,all_images,all_labels,all_class_name,output_path):
             class_to_idx.add(label_arr[fig_count])
             classes.add(class_name)
             filepath = os.path.join(output_path,
-                                    "{}_generator{}.PNG".format(class_name, fig_count)) # TODO: samples file format
+                                    "{}_generator{}.JPEG".format(class_name, fig_count)) # TODO: samples file format
             img_path_label_list.append((filepath, label_arr[fig_count]))
             output_img(filepath, np.array(arr[fig_count]))
     dist.barrier()
@@ -310,7 +310,7 @@ class Diffusion():
             )
             if self.args.image_condition == 'buffer':
                 self.most_confidence[label].requires_grad = False
-            elif self.args.image_condition in ['learn_from_noise', 'triple_canny', 'bmw_canny', 'dct', 'lhb_filter']: #### TODO check grad when add image condition option
+            elif self.args.image_condition in ['learn','learn_from_noise', 'triple_canny', 'bmw_canny', 'dct', 'lhb_filter']: #### TODO check grad when add image condition option
                 self.most_confidence[label].requires_grad = True
         os.makedirs(os.path.join(self.curtask_path, 'image-condition', 'start', 'images'), exist_ok=True)
         mean = get_mean(self.args.ds_name)
@@ -322,7 +322,7 @@ class Diffusion():
             )
         for key, value in self.most_confidence.items():
             self.most_confidence[key] = value.to(self.accelerator.device)
-        if self.args.image_condition in ['learn_from_noise', 'triple_canny', 'bmw_canny', 'dct', 'lhb_filter']: #### TODO check grad when add image condition option
+        if self.args.image_condition in ['learn','learn_from_noise', 'triple_canny', 'bmw_canny', 'dct', 'lhb_filter']: #### TODO check grad when add image condition option
             for label in self.curtask_labels:
                 self.most_confidence[label].retain_grad()
 
@@ -543,8 +543,8 @@ class Diffusion():
 
             mean = get_mean(self.args.ds_name)
             std = get_std(self.args.ds_name)
-            #sample = (sample / 2 + 0.5).clamp(0, 1) # 3, 64, 64, #TODO: check revert-norm
-            sample = sample.mul(std.view(1,3,1,1).cuda()).add(mean.view(1,3,1,1).cuda()).clamp(0,1) #TODO: check revert-norm
+            sample = (sample / 2 + 0.5).clamp(0, 1) # 3, 64, 64, #TODO: check revert-norm
+            #sample = sample.mul(std.view(1,3,1,1).cuda()).add(mean.view(1,3,1,1).cuda()).clamp(0,1) #TODO: check revert-norm
             sample = (sample.permute(0, 2, 3, 1) * 255).round().to(torch.uint8)
             sample = sample.contiguous()
             gathered_samples = [torch.zeros_like(sample) for _ in range(dist.get_world_size())]

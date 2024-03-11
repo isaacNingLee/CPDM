@@ -113,6 +113,7 @@ parser.add_argument('--dct_luma', type = int, default=8)
 parser.add_argument('--dct_chroma', type = int, default=2)
 
 parser.add_argument('--gen_replay_conditioning', default=False, action='store_true')
+parser.add_argument('--gen_r_cond_strength', type=float, default=0.1)
 
 parser.add_argument('--low_cutoff', type=float, default=5)
 parser.add_argument('--high_cutoff', type=float, default=15)

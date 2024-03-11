@@ -33,14 +33,12 @@ python run_CPDM.py \
     --class_cond True \
     --drop_labels_prob 0.2 \
     --w 3.0 \
-    --image_condition learn \
+    --image_condition triple_canny \
     --image_condition_learn_lr 1e-2 \
     --image_condition_learn_L2 1e-2 \
     --max_grad_norm \
     --tau 1e-4 \
-    --diversity_loss \
+    --contrastive_loss \
     --rho 1e-8 \
     --CI_order_rndseed 192371 \
     --nearest_label cosine \
-
-# always check grad condition in TODO tree to see whether it is enabled

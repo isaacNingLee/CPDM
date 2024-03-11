@@ -44,6 +44,7 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
     since = time.time()
     use_cuda = torch.cuda.is_available()
     dsets = torch.load(dataset_path)
+    gen_replay_criterion = (nn.CrossEntropyLoss(), nn.MSELoss())
     
     print(dataset_path)
 
@@ -175,7 +176,7 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                                 generator_class_to_idx,
                                                 dsets)
 
-                model_ft, best_acc = CPDM_train.train_model(args=args,model=model_ft, criterion=criterion,
+                model_ft, best_acc = CPDM_train.gen_replay_conditioning(args=args,model=model_ft, criterion=gen_replay_criterion,
                                                     optimizer=optimizer_ft,lr = lr,
                                                     dsets = dsets, batch_size = batch_size, dset_sizes = dset_sizes,
                                                     use_cuda = use_cuda, num_epochs = num_epochs,task_counter = task_counter,
@@ -407,7 +408,7 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                                 generator_class_to_idx,
                                                 dsets)
 
-                model_ft, best_acc = CPDM_train.train_model(args=args,model=model_ft, criterion=criterion,
+                model_ft, best_acc = CPDM_train.gen_replay_conditioning(args=args,model=model_ft, criterion=gen_replay_criterion,
                                                     optimizer=optimizer_ft,lr = lr,
                                                     dsets = dsets, batch_size = batch_size, dset_sizes = dset_sizes,
                                                     use_cuda = use_cuda, num_epochs = num_epochs,task_counter = task_counter,
@@ -415,7 +416,6 @@ def fine_tune_train_CPDM(dataset_path, args,previous_task_model_path, exp_dir, t
                                                     combine_label_list=combine_label_list,gen_dset=gen_dset,
                                                     test_ds_path=test_ds_path)    
                 
-
 
             test_model_paths.append(os.path.join(exp_dir, 'best_model.pth.tar'))
             combine_order_name = os.path.join(exp_dir,
